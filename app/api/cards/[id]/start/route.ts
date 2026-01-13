@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { marked } from "marked";
+import type { Status } from "@/lib/types";
 
 const execAsync = promisify(exec);
 
@@ -16,14 +18,134 @@ interface ClaudeResponse {
   session_id?: string;
 }
 
+type Phase = "planning" | "implementation" | "retest";
+
 function stripHtml(html: string): string {
   if (!html) return "";
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// Convert marked checkbox output to TipTap TaskList format
+function convertToTipTapTaskList(html: string): string {
+  // marked outputs: <li><input disabled="" type="checkbox"> text</li>
+  // TipTap expects: <ul data-type="taskList"><li data-type="taskItem" data-checked="false">text</li></ul>
+
+  // First, convert checked items (must come before unchecked to avoid false positives)
+  let result = html
+    // Checked: <li><input checked="" ...> → <li data-type="taskItem" data-checked="true">
+    .replace(/<li><input[^>]*checked[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="true">')
+    // Unchecked: <li><input ...> (no checked) → <li data-type="taskItem" data-checked="false">
+    .replace(/<li><input[^>]*type="checkbox"[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="false">');
+
+  // Convert <ul> containing taskItems to taskList
+  result = result.replace(/<ul>(\s*<li data-type="taskItem")/g, '<ul data-type="taskList">$1');
+
+  return result;
+}
+
 function escapeShellArg(arg: string): string {
-  // Escape single quotes and wrap in single quotes
   return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+function detectPhase(card: { solutionSummary: string | null; testScenarios: string | null }): Phase {
+  const hasSolution = card.solutionSummary && stripHtml(card.solutionSummary) !== "";
+  const hasTests = card.testScenarios && stripHtml(card.testScenarios) !== "";
+
+  if (!hasSolution) return "planning";
+  if (!hasTests) return "implementation";
+  return "retest";
+}
+
+function buildPrompt(
+  phase: Phase,
+  card: { title: string; description: string; solutionSummary: string | null; testScenarios: string | null }
+): string {
+  const title = stripHtml(card.title);
+  const description = stripHtml(card.description);
+  const solution = card.solutionSummary ? stripHtml(card.solutionSummary) : "";
+  const tests = card.testScenarios ? stripHtml(card.testScenarios) : "";
+
+  switch (phase) {
+    case "planning":
+      return `You are a senior software architect. Analyze this task and create a detailed implementation plan.
+
+## Task
+${title}
+
+## Description
+${description}
+
+## Requirements
+1. Identify all files that need to be modified
+2. List implementation steps in order
+3. Consider edge cases and error handling
+4. Note any dependencies or prerequisites
+5. Estimate complexity (simple/moderate/complex)
+
+## Output Format
+Provide a structured plan in markdown:
+- **Files to Modify**: List with brief description
+- **Implementation Steps**: Numbered, actionable steps
+- **Edge Cases**: Potential issues to handle
+- **Dependencies**: Required packages or services
+- **Notes**: Any important considerations
+
+Do NOT implement yet - only plan.`;
+
+    case "implementation":
+      return `You are a senior developer. Implement the following plan and write test scenarios.
+
+## Task
+${title}
+
+## Description
+${description}
+
+## Approved Solution Plan
+${solution}
+
+## Instructions
+1. Implement the solution according to the plan above
+2. Follow existing code patterns in the project
+3. After implementation, write test scenarios in markdown
+
+## Test Scenarios Output Format
+## Test Scenarios for ${title}
+
+### Happy Path
+- [ ] Test case 1: Description
+- [ ] Test case 2: Description
+
+### Edge Cases
+- [ ] Test case 3: Description
+
+### Regression Checks
+- [ ] Existing functionality X still works
+
+Implement the code, then output ONLY the test scenarios markdown.`;
+
+    case "retest":
+      return `Re-run and verify these test scenarios:
+
+## Task
+${title}
+
+## Test Scenarios
+${tests}
+
+Run each test and report results. Mark passing tests with ✅ and failing with ❌.`;
+  }
+}
+
+function getNewStatus(phase: Phase, currentStatus: Status): Status {
+  switch (phase) {
+    case "planning":
+      return "progress";
+    case "implementation":
+      return "test";
+    case "retest":
+      return currentStatus; // Stay in current status
+  }
 }
 
 export async function POST(
@@ -53,33 +175,63 @@ export async function POST(
     : null;
 
   const workingDir = project?.folderPath || card.projectFolder || process.cwd();
-  const prompt = stripHtml(card.description);
 
-  if (!prompt) {
+  if (!card.description || stripHtml(card.description) === "") {
     return NextResponse.json(
       { error: "Card has no description to use as prompt" },
       { status: 400 }
     );
   }
 
-  try {
-    // Run Claude CLI in plan mode
-    const result = await runClaudeCli(prompt, workingDir);
+  // Detect current phase
+  const phase = detectPhase(card);
+  const prompt = buildPrompt(phase, card);
+  const newStatus = getNewStatus(phase, card.status as Status);
 
-    // Update card with solution summary
+  console.log(`[Claude CLI] Phase: ${phase}`);
+  console.log(`[Claude CLI] Current status: ${card.status} → New status: ${newStatus}`);
+
+  try {
+    // Run Claude CLI
+    const result = await runClaudeCli(prompt, workingDir, phase);
+
+    // Convert markdown response to HTML for TipTap editor
+    const markedHtml = await marked(result.response);
+    // Convert checkbox format for TipTap TaskList compatibility
+    const htmlResponse = convertToTipTapTaskList(markedHtml);
+
+    // Prepare database updates based on phase
     const updatedAt = new Date().toISOString();
+    const updates: Record<string, string> = {
+      status: newStatus,
+      updatedAt,
+    };
+
+    switch (phase) {
+      case "planning":
+        updates.solutionSummary = htmlResponse;
+        break;
+      case "implementation":
+        updates.testScenarios = htmlResponse;
+        break;
+      case "retest":
+        // Update testScenarios with results
+        updates.testScenarios = htmlResponse;
+        break;
+    }
+
+    // Update database
     db.update(schema.cards)
-      .set({
-        solutionSummary: result.response,
-        updatedAt,
-      })
+      .set(updates)
       .where(eq(schema.cards.id, id))
       .run();
 
     return NextResponse.json({
       success: true,
       cardId: id,
-      response: result.response,
+      phase,
+      newStatus,
+      response: htmlResponse,
       cost: result.cost,
       duration: result.duration,
     });
@@ -97,19 +249,26 @@ export async function POST(
 
 async function runClaudeCli(
   prompt: string,
-  cwd: string
+  cwd: string,
+  phase: Phase
 ): Promise<{ response: string; cost?: number; duration?: number }> {
   const escapedPrompt = escapeShellArg(prompt);
-  // Add < /dev/null to prevent stdin waiting, and set CI=true to disable interactive mode
-  const command = `CI=true claude -p ${escapedPrompt} --permission-mode plan --output-format json < /dev/null`;
+
+  // Phase 2 (Implementation) needs full permissions to write code
+  // Other phases use dontAsk for safety
+  const permissionFlag = phase === "implementation"
+    ? "--dangerously-skip-permissions"
+    : "--permission-mode dontAsk";
+
+  const command = `CI=true claude -p ${escapedPrompt} ${permissionFlag} --output-format json < /dev/null`;
 
   console.log(`[Claude CLI] Running in ${cwd}:`);
-  console.log(`[Claude CLI] ${command}`);
+  console.log(`[Claude CLI] Prompt length: ${prompt.length} chars`);
 
   try {
     const { stdout, stderr } = await execAsync(command, {
       cwd,
-      timeout: 5 * 60 * 1000, // 5 minute timeout
+      timeout: 10 * 60 * 1000, // 10 minute timeout for implementation
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     });
 
@@ -120,7 +279,6 @@ async function runClaudeCli(
     console.log(`[Claude CLI] stdout length: ${stdout.length}`);
 
     try {
-      // Parse JSON response
       const response: ClaudeResponse = JSON.parse(stdout);
 
       if (response.is_error) {
@@ -133,13 +291,12 @@ async function runClaudeCli(
         duration: response.duration_ms,
       };
     } catch {
-      // If JSON parsing fails, use raw output
       console.log(`[Claude CLI] JSON parse failed, using raw output`);
       return { response: stdout.trim() };
     }
   } catch (error) {
     if (error instanceof Error && error.message.includes("TIMEOUT")) {
-      throw new Error("Claude CLI timed out after 5 minutes");
+      throw new Error("Claude CLI timed out after 10 minutes");
     }
     throw error;
   }

@@ -13,14 +13,14 @@ interface ColumnProps {
 }
 
 export function Column({ id, title, cards }: ColumnProps) {
-  const { addCard, activeProjectId, projects, collapsedColumns, toggleColumnCollapse } = useKanbanStore();
+  const { addCardAndOpen, activeProjectId, projects, collapsedColumns, toggleColumnCollapse } = useKanbanStore();
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const isCollapsed = collapsedColumns.includes(id);
 
   const handleAddCard = () => {
     const activeProject = projects.find((p) => p.id === activeProjectId);
-    addCard({
+    addCardAndOpen({
       title: "New Task",
       description: "",
       solutionSummary: "",

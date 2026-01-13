@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { Card, Status, Project, DocumentFile, AppSettings } from "./types";
 
 interface KanbanStore {
@@ -90,7 +91,9 @@ interface KanbanStore {
   updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
 }
 
-export const useKanbanStore = create<KanbanStore>((set, get) => ({
+export const useKanbanStore = create<KanbanStore>()(
+  persist(
+    (set, get) => ({
   // Initial state
   cards: [],
   selectedCard: null,
@@ -432,21 +435,32 @@ export const useKanbanStore = create<KanbanStore>((set, get) => ({
         return { success: false, error: data.error || "Failed to start task" };
       }
 
-      // Update card in state with the new solution summary
+      // Update card based on phase
+      // data.phase: "planning" | "implementation" | "retest"
+      // data.newStatus: new status after operation
+      // data.response: content to save (solutionSummary or testScenarios)
       set((state) => ({
-        cards: state.cards.map((card) =>
-          card.id === cardId
-            ? {
-                ...card,
-                solutionSummary: data.response,
-                updatedAt: new Date().toISOString(),
-              }
-            : card
-        ),
+        cards: state.cards.map((card) => {
+          if (card.id !== cardId) return card;
+
+          const updates: Partial<Card> = {
+            status: data.newStatus,
+            updatedAt: new Date().toISOString(),
+          };
+
+          // Update the appropriate field based on phase
+          if (data.phase === "planning") {
+            updates.solutionSummary = data.response;
+          } else if (data.phase === "implementation" || data.phase === "retest") {
+            updates.testScenarios = data.response;
+          }
+
+          return { ...card, ...updates };
+        }),
         startingCardId: null,
       }));
 
-      return { success: true };
+      return { success: true, phase: data.phase, newStatus: data.newStatus };
     } catch (error) {
       console.error("Failed to start task:", error);
       set({ startingCardId: null });
@@ -469,7 +483,22 @@ export const useKanbanStore = create<KanbanStore>((set, get) => ({
         return { success: false, error: data.error || "Failed to open terminal" };
       }
 
-      return { success: true, message: data.message };
+      // Update card status in UI to match database
+      // data.phase: "planning" | "implementation" | "retest"
+      // data.newStatus: new status after operation
+      set((state) => ({
+        cards: state.cards.map((card) =>
+          card.id === cardId
+            ? {
+                ...card,
+                status: data.newStatus,
+                updatedAt: new Date().toISOString(),
+              }
+            : card
+        ),
+      }));
+
+      return { success: true, phase: data.phase, newStatus: data.newStatus, message: data.message };
     } catch (error) {
       console.error("Failed to open terminal:", error);
       return {
@@ -513,4 +542,13 @@ export const useKanbanStore = create<KanbanStore>((set, get) => ({
       console.error("Failed to update settings:", error);
     }
   },
-}));
+    }),
+    {
+      name: "kanban-preferences",
+      partialize: (state) => ({
+        collapsedColumns: state.collapsedColumns,
+        isSidebarCollapsed: state.isSidebarCollapsed,
+      }),
+    }
+  )
+);
