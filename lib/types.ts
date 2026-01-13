@@ -6,6 +6,9 @@ export type Status =
   | "test"
   | "completed";
 
+export type Complexity = "low" | "medium" | "high";
+export type Priority = "low" | "medium" | "high" | "urgent";
+
 export interface Card {
   id: string;
   title: string;
@@ -13,6 +16,8 @@ export interface Card {
   solutionSummary: string;
   testScenarios: string;
   status: Status;
+  complexity: Complexity;
+  priority: Priority;
   projectFolder: string;
   projectId: string | null;
   taskNumber: number | null;
@@ -70,3 +75,38 @@ export const STATUS_COLORS: Record<Status, string> = {
   test: "bg-status-test",
   completed: "bg-status-completed",
 };
+
+// Settings types
+export type TerminalApp = "iterm2" | "ghostty" | "terminal";
+
+export interface AppSettings {
+  skillsPath: string;
+  mcpConfigPath: string;
+  terminalApp: TerminalApp;
+}
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  skillsPath: "~/.claude/skills",
+  mcpConfigPath: "~/.claude.json",
+  terminalApp: "iterm2",
+};
+
+export const TERMINAL_OPTIONS: { value: TerminalApp; label: string }[] = [
+  { value: "iterm2", label: "iTerm2" },
+  { value: "ghostty", label: "Ghostty" },
+  { value: "terminal", label: "Terminal.app" },
+];
+
+// Complexity & Priority options
+export const COMPLEXITY_OPTIONS: { value: Complexity; label: string; color: string }[] = [
+  { value: "low", label: "Low", color: "#22c55e" },
+  { value: "medium", label: "Medium", color: "#eab308" },
+  { value: "high", label: "High", color: "#ef4444" },
+];
+
+export const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
+  { value: "low", label: "Low", color: "#6b7280" },
+  { value: "medium", label: "Medium", color: "#3b82f6" },
+  { value: "high", label: "High", color: "#f97316" },
+  { value: "urgent", label: "Urgent", color: "#ef4444" },
+];

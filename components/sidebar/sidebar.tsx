@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useKanbanStore } from "@/lib/store";
 import { ProjectList } from "./project-list";
 import { SkillList } from "./skill-list";
 import { McpList } from "./mcp-list";
 import { DocumentList } from "./document-list";
+import { SettingsModal } from "./settings-modal";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,11 +16,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChevronLeft, ChevronRight, FolderKanban } from "lucide-react";
+import { ChevronLeft, ChevronRight, FolderKanban, Settings } from "lucide-react";
 
 export function Sidebar() {
   const { isSidebarCollapsed, toggleSidebar, activeProjectId } =
     useKanbanStore();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   if (isSidebarCollapsed) {
     return (
@@ -57,58 +60,105 @@ export function Sidebar() {
               <p>Projects</p>
             </TooltipContent>
           </Tooltip>
-        </div>
-      </TooltipProvider>
-    );
-  }
 
-  return (
-    <div className="w-64 border-r border-border bg-card flex flex-col h-full shrink-0">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <FolderKanban className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Projects</span>
-        </div>
-        <TooltipProvider>
+          <div className="flex-1" />
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={toggleSidebar}
-                className="h-7 w-7"
+                className="h-8 w-8"
+                onClick={() => setIsSettingsOpen(true)}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <Settings className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <p>Collapse sidebar</p>
+              <p>Settings</p>
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
+        </div>
+
+        {isSettingsOpen && (
+          <SettingsModal onClose={() => setIsSettingsOpen(false)} />
+        )}
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <>
+      <div className="w-64 border-r border-border bg-card flex flex-col h-full shrink-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <FolderKanban className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">Projects</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="h-7 w-7"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Settings</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={toggleSidebar}
+                    className="h-7 w-7"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Collapse sidebar</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+
+        {/* Content */}
+        <ScrollArea className="flex-1">
+          <div className="py-2">
+            <ProjectList />
+
+            {/* Skills Section */}
+            <SkillList />
+
+            {/* MCPs Section */}
+            <McpList />
+
+            {/* Documents Section - only show when project selected */}
+            {activeProjectId && (
+              <>
+                <Separator className="my-3 mx-4" />
+                <DocumentList />
+              </>
+            )}
+          </div>
+        </ScrollArea>
       </div>
 
-      {/* Content */}
-      <ScrollArea className="flex-1">
-        <div className="py-2">
-          <ProjectList />
-
-          {/* Skills Section */}
-          <SkillList />
-
-          {/* MCPs Section */}
-          <McpList />
-
-          {/* Documents Section - only show when project selected */}
-          {activeProjectId && (
-            <>
-              <Separator className="my-3 mx-4" />
-              <DocumentList />
-            </>
-          )}
-        </div>
-      </ScrollArea>
-    </div>
+      {isSettingsOpen && (
+        <SettingsModal onClose={() => setIsSettingsOpen(false)} />
+      )}
+    </>
   );
 }

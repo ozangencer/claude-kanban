@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Card, Status, Project, DocumentFile } from "./types";
+import { Card, Status, Project, DocumentFile, AppSettings } from "./types";
 
 interface KanbanStore {
   // Cards state
@@ -29,6 +29,10 @@ interface KanbanStore {
 
   // Claude integration state
   startingCardId: string | null;
+
+  // Settings state
+  settings: AppSettings | null;
+  isSettingsLoading: boolean;
 
   // Card actions
   fetchCards: () => Promise<void>;
@@ -74,6 +78,10 @@ interface KanbanStore {
   // Claude integration actions
   startTask: (cardId: string) => Promise<{ success: boolean; error?: string }>;
   openTerminal: (cardId: string) => Promise<{ success: boolean; error?: string }>;
+
+  // Settings actions
+  fetchSettings: () => Promise<void>;
+  updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
 }
 
 export const useKanbanStore = create<KanbanStore>((set, get) => ({
@@ -104,6 +112,10 @@ export const useKanbanStore = create<KanbanStore>((set, get) => ({
 
   // Claude integration initial state
   startingCardId: null,
+
+  // Settings initial state
+  settings: null,
+  isSettingsLoading: false,
 
   // Card actions
   fetchCards: async () => {
@@ -440,13 +452,48 @@ export const useKanbanStore = create<KanbanStore>((set, get) => ({
         return { success: false, error: data.error || "Failed to open terminal" };
       }
 
-      return { success: true };
+      return { success: true, message: data.message };
     } catch (error) {
       console.error("Failed to open terminal:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
+    }
+  },
+
+  // Settings actions
+  fetchSettings: async () => {
+    set({ isSettingsLoading: true });
+    try {
+      const response = await fetch("/api/settings");
+      const settings = await response.json();
+      set({ settings, isSettingsLoading: false });
+    } catch (error) {
+      console.error("Failed to fetch settings:", error);
+      set({ isSettingsLoading: false });
+    }
+  },
+
+  updateSettings: async (updates) => {
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      const settings = await response.json();
+      set({ settings });
+
+      // Refresh skills and MCPs if paths changed
+      if (updates.skillsPath) {
+        get().fetchSkills();
+      }
+      if (updates.mcpConfigPath) {
+        get().fetchMcps();
+      }
+    } catch (error) {
+      console.error("Failed to update settings:", error);
     }
   },
 }));

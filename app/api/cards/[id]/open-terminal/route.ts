@@ -1,14 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { exec } from "child_process";
-import { writeFileSync, unlinkSync, chmodSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
+import { exec, execSync } from "child_process";
+import type { TerminalApp } from "@/lib/types";
 
 function stripHtml(html: string): string {
   if (!html) return "";
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function getAppleScript(terminal: "iterm2" | "terminal", command: string): string {
+  const escapedCommand = command.replace(/"/g, '\\"');
+
+  if (terminal === "iterm2") {
+    return `
+tell application "iTerm2"
+    create window with default profile
+    tell current session of current window
+        write text "${escapedCommand}"
+    end tell
+end tell`;
+  }
+
+  // Terminal.app
+  return `
+tell application "Terminal"
+    do script "${escapedCommand}"
+    activate
+end tell`;
 }
 
 export async function POST(
@@ -37,6 +56,15 @@ export async function POST(
         .get()
     : null;
 
+  // Get terminal preference from settings
+  const terminalSetting = db
+    .select()
+    .from(schema.settings)
+    .where(eq(schema.settings.key, "terminal_app"))
+    .get();
+
+  const terminal = (terminalSetting?.value || "iterm2") as TerminalApp;
+
   const workingDir = project?.folderPath || card.projectFolder || process.cwd();
   const prompt = stripHtml(card.description);
 
@@ -48,38 +76,43 @@ export async function POST(
   }
 
   try {
-    // Create a temporary script file
-    const scriptPath = join(tmpdir(), `claude-task-${id}.sh`);
+    // Escape for shell/AppleScript
+    const escapedPrompt = prompt.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const escapedDir = workingDir.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-    const scriptContent = `#!/bin/bash
-cd "${workingDir}"
-claude "${prompt.replace(/"/g, '\\"')}" --permission-mode plan
-# Keep terminal open after completion
-exec bash
-`;
+    const claudeCommand = `cd "${escapedDir}" && claude "${escapedPrompt}" --permission-mode plan`;
 
-    writeFileSync(scriptPath, scriptContent);
-    chmodSync(scriptPath, "755");
-
-    console.log(`[Open Terminal] Script: ${scriptPath}`);
     console.log(`[Open Terminal] Working dir: ${workingDir}`);
     console.log(`[Open Terminal] Prompt: ${prompt}`);
+    console.log(`[Open Terminal] Terminal app: ${terminal}`);
 
-    // Open Ghostty with the script
-    const ghosttyCommand = `open -na Ghostty.app --args -e "${scriptPath}"`;
+    if (terminal === "ghostty") {
+      // Ghostty doesn't support AppleScript
+      // Copy command to clipboard and open Ghostty
+      execSync(`echo "${claudeCommand.replace(/"/g, '\\"')}" | pbcopy`);
+      exec("open -a Ghostty", (error) => {
+        if (error) {
+          console.error(`[Open Terminal] Error opening Ghostty: ${error.message}`);
+        }
+      });
 
-    exec(ghosttyCommand, (error) => {
+      return NextResponse.json({
+        success: true,
+        cardId: id,
+        workingDir,
+        prompt,
+        terminal,
+        message: "Ghostty opened. Command copied to clipboard - press Cmd+V to paste.",
+      });
+    }
+
+    // iTerm2 or Terminal.app
+    const appleScript = getAppleScript(terminal, claudeCommand);
+
+    exec(`osascript -e '${appleScript.replace(/'/g, "'\\''")}'`, (error) => {
       if (error) {
         console.error(`[Open Terminal] Error: ${error.message}`);
       }
-      // Clean up script after a delay
-      setTimeout(() => {
-        try {
-          unlinkSync(scriptPath);
-        } catch {
-          // Ignore cleanup errors
-        }
-      }, 5000);
     });
 
     return NextResponse.json({
@@ -87,6 +120,7 @@ exec bash
       cardId: id,
       workingDir,
       prompt,
+      terminal,
     });
   } catch (error) {
     console.error("Open terminal error:", error);

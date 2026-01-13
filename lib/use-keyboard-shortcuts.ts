@@ -48,6 +48,8 @@ export function useKeyboardShortcuts() {
             solutionSummary: "",
             testScenarios: "",
             status: "backlog",
+            complexity: "medium",
+            priority: "medium",
             projectFolder: activeProject?.folderPath || "",
             projectId: activeProjectId,
           });

@@ -2,7 +2,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, getDisplayId } from "@/lib/types";
+import { Card, getDisplayId, PRIORITY_OPTIONS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
 import { Play, Loader2, Terminal } from "lucide-react";
 
@@ -10,6 +10,50 @@ import { Play, Loader2, Terminal } from "lucide-react";
 function stripHtml(html: string): string {
   if (!html) return "";
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Linear-style priority icon with bars
+function PriorityIcon({ priority }: { priority: string }) {
+  const levels = {
+    low: 1,
+    medium: 2,
+    high: 3,
+    urgent: 4,
+  };
+  const colors = {
+    low: "#6b7280",
+    medium: "#3b82f6",
+    high: "#f97316",
+    urgent: "#ef4444",
+  };
+
+  const level = levels[priority as keyof typeof levels] || 2;
+  const color = colors[priority as keyof typeof colors] || "#3b82f6";
+
+  return (
+    <span title={`Priority: ${priority.charAt(0).toUpperCase() + priority.slice(1)}`}>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        className="shrink-0"
+      >
+        {[0, 1, 2, 3].map((i) => (
+          <rect
+            key={i}
+            x={i * 4}
+            y={12 - (i + 1) * 3}
+            width="3"
+            height={(i + 1) * 3}
+            rx="0.5"
+            fill={i < level ? color : "currentColor"}
+            opacity={i < level ? 1 : 0.15}
+          />
+        ))}
+      </svg>
+    </span>
+  );
 }
 
 interface TaskCardProps {
@@ -147,12 +191,14 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               </button>
             </>
           )}
-          {card.solutionSummary && (
+          {/* Priority indicator - Linear style */}
+          <PriorityIcon priority={card.priority} />
+          {stripHtml(card.solutionSummary) && (
             <span className="text-xs bg-green-500/20 text-green-500 px-1.5 py-0.5 rounded">
               Solution
             </span>
           )}
-          {card.testScenarios && (
+          {stripHtml(card.testScenarios) && (
             <span className="text-xs bg-blue-500/20 text-blue-500 px-1.5 py-0.5 rounded">
               Tests
             </span>

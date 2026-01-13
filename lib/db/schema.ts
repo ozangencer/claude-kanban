@@ -24,6 +24,8 @@ export const cards = sqliteTable("cards", {
   solutionSummary: text("solution_summary").notNull().default(""),
   testScenarios: text("test_scenarios").notNull().default(""),
   status: text("status").notNull().default("backlog"),
+  complexity: text("complexity").notNull().default("medium"),
+  priority: text("priority").notNull().default("medium"),
   projectFolder: text("project_folder").notNull().default(""),
   projectId: text("project_id"),
   taskNumber: integer("task_number"),
@@ -33,3 +35,13 @@ export const cards = sqliteTable("cards", {
 
 export type CardRecord = typeof cards.$inferSelect;
 export type NewCard = typeof cards.$inferInsert;
+
+// Settings tablosu - key-value store
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type SettingRecord = typeof settings.$inferSelect;
+export type NewSetting = typeof settings.$inferInsert;

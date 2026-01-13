@@ -2,7 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useKanbanStore } from "@/lib/store";
-import { COLUMNS, Status, getDisplayId } from "@/lib/types";
+import {
+  COLUMNS,
+  Status,
+  getDisplayId,
+  Complexity,
+  Priority,
+  COMPLEXITY_OPTIONS,
+  PRIORITY_OPTIONS,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -56,6 +64,8 @@ export function CardModal() {
   const [solutionSummary, setSolutionSummary] = useState("");
   const [testScenarios, setTestScenarios] = useState("");
   const [status, setStatus] = useState<Status>("ideation");
+  const [complexity, setComplexity] = useState<Complexity>("medium");
+  const [priority, setPriority] = useState<Priority>("medium");
   const [projectId, setProjectId] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -83,6 +93,8 @@ export function CardModal() {
       setSolutionSummary(selectedCard.solutionSummary);
       setTestScenarios(selectedCard.testScenarios);
       setStatus(selectedCard.status);
+      setComplexity(selectedCard.complexity || "medium");
+      setPriority(selectedCard.priority || "medium");
       setProjectId(selectedCard.projectId);
     }
   }, [selectedCard]);
@@ -102,6 +114,8 @@ export function CardModal() {
         solutionSummary,
         testScenarios,
         status,
+        complexity,
+        priority,
         projectId,
         projectFolder: selectedProject?.folderPath || selectedCard.projectFolder,
       };
@@ -246,6 +260,92 @@ export function CardModal() {
                         <span className="text-xs text-muted-foreground ml-1">
                           {p.idPrefix}
                         </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Complexity & Priority */}
+          <div className="grid grid-cols-2 gap-4 pb-2">
+            <div>
+              <label className="block text-sm text-muted-foreground mb-2">
+                Complexity
+              </label>
+              <Select
+                value={complexity}
+                onValueChange={(v) => setComplexity(v as Complexity)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor:
+                            COMPLEXITY_OPTIONS.find((o) => o.value === complexity)
+                              ?.color || "#eab308",
+                        }}
+                      />
+                      <span>
+                        {COMPLEXITY_OPTIONS.find((o) => o.value === complexity)
+                          ?.label || "Medium"}
+                      </span>
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {COMPLEXITY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: opt.color }}
+                        />
+                        <span>{opt.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-2">
+                Priority
+              </label>
+              <Select
+                value={priority}
+                onValueChange={(v) => setPriority(v as Priority)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor:
+                            PRIORITY_OPTIONS.find((o) => o.value === priority)
+                              ?.color || "#3b82f6",
+                        }}
+                      />
+                      <span>
+                        {PRIORITY_OPTIONS.find((o) => o.value === priority)
+                          ?.label || "Medium"}
+                      </span>
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: opt.color }}
+                        />
+                        <span>{opt.label}</span>
                       </div>
                     </SelectItem>
                   ))}

@@ -2,10 +2,34 @@ import { NextResponse } from "next/server";
 import { readdirSync, statSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { db } from "@/lib/db";
+import { settings } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+
+// Expand ~ to home directory
+function expandPath(path: string): string {
+  if (path.startsWith("~")) {
+    return join(homedir(), path.slice(1));
+  }
+  return path;
+}
 
 export async function GET() {
   try {
-    const skillsPath = join(homedir(), ".claude", "skills");
+    // Get skills path from settings
+    const setting = db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, "skills_path"))
+      .get();
+
+    // Kullanıcı path'i boş bıraktıysa, skills gösterme
+    if (setting !== undefined && setting.value === "") {
+      return NextResponse.json({ skills: [] });
+    }
+
+    const configuredPath = setting?.value || "~/.claude/skills";
+    const skillsPath = expandPath(configuredPath);
 
     const entries = readdirSync(skillsPath);
     const skills = entries.filter((entry) => {

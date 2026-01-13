@@ -23,6 +23,8 @@ export function Column({ id, title, cards }: ColumnProps) {
       solutionSummary: "",
       testScenarios: "",
       status: id,
+      complexity: "medium",
+      priority: "medium",
       projectFolder: activeProject?.folderPath || "",
       projectId: activeProjectId,
     });
