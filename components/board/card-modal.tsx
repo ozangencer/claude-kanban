@@ -74,9 +74,27 @@ export function CardModal() {
   const [solutionOpen, setSolutionOpen] = useState(false);
   const [testsOpen, setTestsOpen] = useState(false);
 
+  // Unsaved changes dialog state
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+
+  // Track unsaved changes
+  const hasUnsavedChanges = selectedCard && (
+    title !== selectedCard.title ||
+    description !== selectedCard.description ||
+    solutionSummary !== selectedCard.solutionSummary ||
+    testScenarios !== selectedCard.testScenarios ||
+    status !== selectedCard.status ||
+    complexity !== (selectedCard.complexity || "medium") ||
+    priority !== (selectedCard.priority || "medium") ||
+    projectId !== selectedCard.projectId
+  );
+
   // Get project and displayId
   const project = projects.find((p) => p.id === projectId);
   const displayId = selectedCard ? getDisplayId(selectedCard, project) : null;
+
+  // Check if save should be disabled (no project selected)
+  const canSave = projectId !== null;
 
   useEffect(() => {
     if (selectedCard) {
@@ -132,7 +150,14 @@ export function CardModal() {
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    // Only close if clicking the backdrop itself (not the panel)
+    if (e.target === e.currentTarget) {
+      if (hasUnsavedChanges) {
+        setShowUnsavedDialog(true);
+      } else {
+        handleClose();
+      }
+    }
   };
 
   useEffect(() => {
@@ -219,13 +244,13 @@ export function CardModal() {
             </div>
             <div>
               <label className="block text-sm text-muted-foreground mb-2">
-                Project
+                Project <span className="text-destructive">*</span>
               </label>
               <Select
                 value={projectId || "none"}
                 onValueChange={(v) => setProjectId(v === "none" ? null : v)}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className={`w-full ${!projectId ? "border-destructive" : ""}`}>
                   <SelectValue placeholder="Select project">
                     {projectId ? (
                       <div className="flex items-center gap-2">
@@ -243,12 +268,11 @@ export function CardModal() {
                         </span>
                       </div>
                     ) : (
-                      "No project"
+                      "Select project"
                     )}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No project</SelectItem>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       <div className="flex items-center gap-2">
@@ -265,6 +289,9 @@ export function CardModal() {
                   ))}
                 </SelectContent>
               </Select>
+              {!projectId && (
+                <p className="text-xs text-destructive mt-1">Please select a project</p>
+              )}
             </div>
           </div>
 
@@ -452,10 +479,33 @@ export function CardModal() {
             <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save Changes</Button>
+            <Button onClick={handleSave} disabled={!canSave}>
+              Save Changes
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* Unsaved Changes Dialog */}
+      <AlertDialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClose}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

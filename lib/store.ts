@@ -177,7 +177,7 @@ export const useKanbanStore = create<KanbanStore>()(
   },
 
   updateCard: async (id, updates) => {
-    // Optimistic update - update UI immediately
+    // Optimistic update - update UI immediately (except taskNumber which comes from API)
     const previousCards = get().cards;
     set((state) => ({
       cards: state.cards.map((card) =>
@@ -188,11 +188,19 @@ export const useKanbanStore = create<KanbanStore>()(
     }));
 
     try {
-      await fetch(`/api/cards/${id}`, {
+      const response = await fetch(`/api/cards/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
+      const updatedCard = await response.json();
+
+      // Update with server response to get correct taskNumber
+      set((state) => ({
+        cards: state.cards.map((card) =>
+          card.id === id ? updatedCard : card
+        ),
+      }));
     } catch (error) {
       console.error("Failed to update card:", error);
       // Rollback on error

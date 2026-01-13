@@ -20,6 +20,35 @@ export async function PUT(
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
 
+  const now = new Date().toISOString();
+  const newProjectId = body.projectId !== undefined ? body.projectId : existing.projectId;
+  let taskNumber = existing.taskNumber;
+
+  // If projectId changed and new project is selected, assign new taskNumber
+  if (newProjectId !== existing.projectId && newProjectId !== null) {
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, newProjectId))
+      .get();
+
+    if (project) {
+      taskNumber = project.nextTaskNumber;
+
+      // Increment project's nextTaskNumber
+      db.update(schema.projects)
+        .set({
+          nextTaskNumber: project.nextTaskNumber + 1,
+          updatedAt: now,
+        })
+        .where(eq(schema.projects.id, newProjectId))
+        .run();
+    }
+  } else if (newProjectId === null) {
+    // If project is removed, clear taskNumber
+    taskNumber = null;
+  }
+
   const updatedCard = {
     title: body.title ?? existing.title,
     description: body.description ?? existing.description,
@@ -29,8 +58,9 @@ export async function PUT(
     complexity: body.complexity ?? existing.complexity,
     priority: body.priority ?? existing.priority,
     projectFolder: body.projectFolder ?? existing.projectFolder,
-    projectId: body.projectId !== undefined ? body.projectId : existing.projectId,
-    updatedAt: new Date().toISOString(),
+    projectId: newProjectId,
+    taskNumber,
+    updatedAt: now,
   };
 
   db.update(schema.cards)
@@ -49,7 +79,7 @@ export async function PUT(
     priority: updatedCard.priority as Card["priority"],
     projectFolder: updatedCard.projectFolder,
     projectId: updatedCard.projectId,
-    taskNumber: existing.taskNumber,
+    taskNumber: updatedCard.taskNumber,
     createdAt: existing.createdAt,
     updatedAt: updatedCard.updatedAt,
   };

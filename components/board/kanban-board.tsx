@@ -15,9 +15,8 @@ import { useState } from "react";
 import { useKanbanStore } from "@/lib/store";
 import { COLUMNS, Card, Status, Priority, Complexity } from "@/lib/types";
 
-// Priority order: urgent > high > medium > low (descending)
+// Priority order: high > medium > low (descending)
 const PRIORITY_ORDER: Record<Priority, number> = {
-  urgent: 4,
   high: 3,
   medium: 2,
   low: 1,

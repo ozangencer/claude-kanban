@@ -254,6 +254,56 @@ Obsidian skill hala mevcut ama bu proje tercih edilmeli.
 
 ---
 
+## MCP Kanban Workflow (Claude Code için)
+
+Claude Kanban projesi üzerinde çalışırken aşağıdaki workflow'u takip et:
+
+### Kullanılabilir MCP Tool'ları
+
+| Tool | Açıklama |
+|------|----------|
+| `mcp__kanban__list_cards` | Tüm kartları listele (status/projectId ile filtrele) |
+| `mcp__kanban__get_card` | Belirli bir kartı getir |
+| `mcp__kanban__save_plan` | Plan kaydet ve kartı "In Progress"e taşı |
+| `mcp__kanban__save_tests` | Test senaryoları kaydet ve kartı "Human Test"e taşı |
+| `mcp__kanban__move_card` | Kartı farklı bir sütuna taşı |
+| `mcp__kanban__update_card` | Kart bilgilerini güncelle |
+
+### Workflow Kuralları
+
+1. **Plan Onaylandığında:**
+   - Kullanıcı planı onayladıktan sonra (ExitPlanMode sonrası), kullanıcıya sor: "Planı kanban kartına kaydetmemi ister misin?"
+   - Onay alırsan `mcp__kanban__save_plan` tool'unu çağır
+   - Bu otomatik olarak kartı "In Progress" sütununa taşır
+
+2. **İmplementasyon Tamamlandığında:**
+   - Kod yazımı ve testler başarıyla tamamlandığında, kullanıcıya sor: "Test senaryolarını kanban kartına kaydetmemi ister misin?"
+   - Onay alırsan `mcp__kanban__save_tests` tool'unu çağır
+   - Bu otomatik olarak kartı "Human Test" sütununa taşır
+
+3. **Markdown Formatı:**
+   - `save_plan` ve `save_tests` markdown formatında içerik bekler
+   - Checkbox'lar için `- [ ]` veya `- [x]` formatını kullan
+   - MCP server otomatik olarak Tiptap-uyumlu HTML'e çevirir
+
+### Örnek Kullanım
+
+```
+# Plan kaydetme
+mcp__kanban__save_plan({
+  id: "card-uuid",
+  solutionSummary: "# Plan Başlığı\n\n## Adımlar\n1. İlk adım\n2. İkinci adım"
+})
+
+# Test senaryoları kaydetme
+mcp__kanban__save_tests({
+  id: "card-uuid",
+  testScenarios: "# Test Senaryoları\n\n- [ ] İlk test\n- [ ] İkinci test"
+})
+```
+
+---
+
 ## Yeni Session İçin Checklist
 
 1. Bu dosyayı oku: `/Users/ozangencer/vibecode/claude-kanban/CLAUDE.md`
