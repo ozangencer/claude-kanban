@@ -387,6 +387,14 @@ export const useKanbanStore = create<KanbanStore>((set, get) => ({
   toggleSidebar: () =>
     set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
 
+  // Column collapse actions
+  toggleColumnCollapse: (columnId) =>
+    set((state) => ({
+      collapsedColumns: state.collapsedColumns.includes(columnId)
+        ? state.collapsedColumns.filter((id) => id !== columnId)
+        : [...state.collapsedColumns, columnId],
+    })),
+
   // Skills & MCPs actions
   fetchSkills: async () => {
     try {
