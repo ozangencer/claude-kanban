@@ -1,0 +1,74 @@
+import { NextRequest, NextResponse } from "next/server";
+import { v4 as uuidv4 } from "uuid";
+import { eq } from "drizzle-orm";
+import { db, schema } from "@/lib/db";
+import { Card } from "@/lib/types";
+
+export async function GET() {
+  const rows = db.select().from(schema.cards).all();
+
+  const cards: Card[] = rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    solutionSummary: row.solutionSummary,
+    testScenarios: row.testScenarios,
+    status: row.status as Card["status"],
+    projectFolder: row.projectFolder,
+    projectId: row.projectId,
+    taskNumber: row.taskNumber,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }));
+
+  return NextResponse.json(cards);
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json();
+  const now = new Date().toISOString();
+
+  let taskNumber: number | null = null;
+  let projectFolder = body.projectFolder || "";
+
+  // If projectId provided, get next task number
+  if (body.projectId) {
+    const project = db
+      .select()
+      .from(schema.projects)
+      .where(eq(schema.projects.id, body.projectId))
+      .get();
+
+    if (project) {
+      taskNumber = project.nextTaskNumber;
+      projectFolder = project.folderPath;
+
+      // Increment project's nextTaskNumber
+      db.update(schema.projects)
+        .set({
+          nextTaskNumber: project.nextTaskNumber + 1,
+          updatedAt: now,
+        })
+        .where(eq(schema.projects.id, body.projectId))
+        .run();
+    }
+  }
+
+  const newCard = {
+    id: uuidv4(),
+    title: body.title || "",
+    description: body.description || "",
+    solutionSummary: body.solutionSummary || "",
+    testScenarios: body.testScenarios || "",
+    status: body.status || "backlog",
+    projectFolder,
+    projectId: body.projectId || null,
+    taskNumber,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  db.insert(schema.cards).values(newCard).run();
+
+  return NextResponse.json(newCard, { status: 201 });
+}

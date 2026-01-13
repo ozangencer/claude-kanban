@@ -1,0 +1,290 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+/* Custom scrollbar - Dark mode (default) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Light mode scrollbar */
+.light ::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid #5e6ad2;
+  outline-offset: 2px;
+}
+
+/* Input and textarea styles */
+input,
+textarea {
+  background-color: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #ffffff;
+  font-family: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #666666;
+}
+
+input:focus,
+textarea:focus {
+  border-color: #5e6ad2;
+  outline: none;
+}
+
+/* Button base styles */
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+
+@layer base {
+  :root {
+    /* Linear-inspired dark theme as default */
+    --background: 0 0% 5%;
+    --foreground: 0 0% 100%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 100%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 235 58% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 235 58% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 235 58% 60%;
+    --radius: 0.5rem;
+    --surface: 0 0% 10%;
+  }
+  .light {
+    --background: 0 0% 98%;
+    --foreground: 0 0% 5%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 5%;
+    --primary: 235 58% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 5%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 235 58% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 235 58% 50%;
+    --surface: 0 0% 96%;
+  }
+}
+
+
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* TipTap Editor Styles */
+.tiptap-editor {
+  @apply w-full px-3 py-2 rounded-md text-sm bg-background border border-input;
+  @apply focus-within:border-accent-blue focus-within:ring-1 focus-within:ring-accent-blue;
+}
+
+.tiptap-editor .ProseMirror {
+  @apply outline-none min-h-[80px];
+}
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  @apply text-muted-foreground pointer-events-none float-left h-0;
+  content: attr(data-placeholder);
+}
+
+/* Prose styles for dark theme */
+.prose-kanban {
+  --tw-prose-body: hsl(var(--foreground));
+  --tw-prose-headings: hsl(var(--foreground));
+  --tw-prose-links: #5e6ad2;
+  --tw-prose-bold: hsl(var(--foreground));
+  --tw-prose-counters: hsl(var(--muted-foreground));
+  --tw-prose-bullets: hsl(var(--muted-foreground));
+  --tw-prose-hr: hsl(var(--border));
+  --tw-prose-quotes: hsl(var(--foreground));
+  --tw-prose-quote-borders: hsl(var(--border));
+  --tw-prose-code: hsl(var(--foreground));
+  --tw-prose-pre-code: hsl(var(--muted-foreground));
+  --tw-prose-pre-bg: hsl(var(--surface));
+}
+
+.prose-kanban code {
+  @apply bg-surface px-1 py-0.5 rounded text-sm;
+}
+
+.prose-kanban code::before,
+.prose-kanban code::after {
+  content: none;
+}
+
+.prose-kanban pre {
+  @apply bg-surface border border-border rounded-md;
+}
+
+.prose-kanban h1 {
+  @apply text-xl font-semibold mt-4 mb-2;
+}
+
+.prose-kanban h2 {
+  @apply text-lg font-semibold mt-3 mb-2;
+}
+
+.prose-kanban h3 {
+  @apply text-base font-semibold mt-2 mb-1;
+}
+
+/* Remove top margin for first child */
+.prose-kanban > *:first-child {
+  @apply mt-0;
+}
+
+.prose-kanban ul {
+  @apply pl-5 my-2 list-disc;
+}
+
+.prose-kanban ol {
+  @apply pl-5 my-2 list-decimal;
+}
+
+.prose-kanban li {
+  @apply my-0.5;
+}
+
+.prose-kanban li p {
+  @apply m-0;
+}
+
+/* Task list (checkboxes) */
+.prose-kanban ul[data-type="taskList"] {
+  @apply list-none pl-0;
+}
+
+.prose-kanban ul[data-type="taskList"] li {
+  @apply flex items-start gap-2 my-1;
+}
+
+.prose-kanban ul[data-type="taskList"] li > label {
+  @apply flex items-center gap-2;
+}
+
+.prose-kanban ul[data-type="taskList"] li input[type="checkbox"] {
+  @apply w-4 h-4 rounded border-2 border-muted-foreground cursor-pointer;
+  @apply checked:bg-accent-blue checked:border-accent-blue;
+  accent-color: #5e6ad2;
+}
+
+.prose-kanban ul[data-type="taskList"] li > div {
+  @apply flex-1;
+}
+
+.prose-kanban blockquote {
+  @apply border-l-2 border-border pl-4 italic text-muted-foreground;
+}
+
+.prose-kanban a {
+  @apply text-accent-blue underline;
+}
+
+.prose-kanban hr {
+  @apply border-border my-4;
+}
+
+/* Mention styles */
+.mention {
+  @apply px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.skill-mention {
+  @apply bg-primary/20 text-primary;
+}
+
+.mcp-mention {
+  @apply bg-blue-500/20 text-blue-400;
+}
+
+/* Tippy tooltip styles */
+.tippy-box {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.tippy-content {
+  padding: 0 !important;
+}
