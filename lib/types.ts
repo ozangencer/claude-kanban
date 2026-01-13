@@ -7,7 +7,7 @@ export type Status =
   | "completed";
 
 export type Complexity = "low" | "medium" | "high";
-export type Priority = "low" | "medium" | "high" | "urgent";
+export type Priority = "low" | "medium" | "high";
 
 export interface Card {
   id: string;
@@ -63,7 +63,7 @@ export const COLUMNS: { id: Status; title: string }[] = [
   { id: "backlog", title: "Backlog" },
   { id: "bugs", title: "Bugs" },
   { id: "progress", title: "In Progress" },
-  { id: "test", title: "Test" },
+  { id: "test", title: "Human Test" },
   { id: "completed", title: "Completed" },
 ];
 
@@ -107,6 +107,5 @@ export const COMPLEXITY_OPTIONS: { value: Complexity; label: string; color: stri
 export const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }[] = [
   { value: "low", label: "Low", color: "#6b7280" },
   { value: "medium", label: "Medium", color: "#3b82f6" },
-  { value: "high", label: "High", color: "#f97316" },
-  { value: "urgent", label: "Urgent", color: "#ef4444" },
+  { value: "high", label: "High", color: "#ef4444" },
 ];

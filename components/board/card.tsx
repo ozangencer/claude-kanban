@@ -4,7 +4,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, PRIORITY_OPTIONS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical } from "lucide-react";
 
 // Strip HTML tags for preview text
 function stripHtml(html: string): string {
@@ -12,19 +12,17 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// Linear-style priority icon with bars
+// Linear-style priority icon with bars (3 levels)
 function PriorityIcon({ priority }: { priority: string }) {
   const levels = {
     low: 1,
     medium: 2,
     high: 3,
-    urgent: 4,
   };
   const colors = {
     low: "#6b7280",
     medium: "#3b82f6",
-    high: "#f97316",
-    urgent: "#ef4444",
+    high: "#ef4444",
   };
 
   const level = levels[priority as keyof typeof levels] || 2;
@@ -33,17 +31,17 @@ function PriorityIcon({ priority }: { priority: string }) {
   return (
     <span title={`Priority: ${priority.charAt(0).toUpperCase() + priority.slice(1)}`}>
       <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
         fill="none"
         className="shrink-0"
       >
-        {[0, 1, 2, 3].map((i) => (
+        {[0, 1, 2].map((i) => (
           <rect
             key={i}
             x={i * 4}
-            y={12 - (i + 1) * 3}
+            y={9 - (i + 1) * 3}
             width="3"
             height={(i + 1) * 3}
             rx="0.5"
@@ -61,6 +59,37 @@ interface TaskCardProps {
   isDragging?: boolean;
 }
 
+type Phase = "planning" | "implementation" | "retest";
+
+function detectPhase(card: Card): Phase {
+  const hasSolution = card.solutionSummary && stripHtml(card.solutionSummary) !== "";
+  const hasTests = card.testScenarios && stripHtml(card.testScenarios) !== "";
+
+  if (!hasSolution) return "planning";
+  if (!hasTests) return "implementation";
+  return "retest";
+}
+
+function getPhaseLabels(phase: Phase): { play: string; terminal: string } {
+  switch (phase) {
+    case "planning":
+      return {
+        play: "Plan Task (Autonomous)",
+        terminal: "Plan Task (Interactive)",
+      };
+    case "implementation":
+      return {
+        play: "Implement (Autonomous)",
+        terminal: "Implement (Interactive)",
+      };
+    case "retest":
+      return {
+        play: "Re-test (Autonomous)",
+        terminal: "Re-test (Interactive)",
+      };
+  }
+}
+
 export function TaskCard({ card, isDragging = false }: TaskCardProps) {
   const { selectCard, openModal, projects, startTask, startingCardId, openTerminal } = useKanbanStore();
   const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
@@ -69,6 +98,10 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
 
   const isStarting = startingCardId === card.id;
   const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed");
+
+  // Detect current phase for dynamic tooltips
+  const phase = detectPhase(card);
+  const phaseLabels = getPhaseLabels(phase);
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -120,7 +153,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
         isDragging ? "shadow-2xl ring-2 ring-primary/50" : ""
       } ${isBeingDragged ? "z-50" : ""}`}
     >
-      {/* Title with displayId */}
+      {/* Title with displayId and priority */}
       <div className="flex items-start gap-2 mb-1">
         {displayId && (
           <span
@@ -133,9 +166,10 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
             {displayId}
           </span>
         )}
-        <h3 className="text-sm font-medium text-card-foreground group-hover:text-primary transition-colors line-clamp-2">
+        <h3 className="text-sm font-medium text-card-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1">
           {card.title}
         </h3>
+        <PriorityIcon priority={card.priority} />
       </div>
 
       {card.description && (
@@ -169,7 +203,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               <button
                 onClick={handleOpenTerminal}
                 className="p-1 rounded transition-colors bg-orange-500/10 text-orange-500/70 hover:bg-orange-500/20 hover:text-orange-500"
-                title="Open in Ghostty (Interactive)"
+                title={phaseLabels.terminal}
               >
                 <Terminal className="w-3.5 h-3.5" />
               </button>
@@ -181,7 +215,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                     ? "bg-primary/20 text-primary cursor-wait"
                     : "bg-primary/10 text-primary/70 hover:bg-primary/20 hover:text-primary"
                 }`}
-                title={isStarting ? "Running Claude..." : "Start with Claude (Background)"}
+                title={isStarting ? "Running Claude..." : phaseLabels.play}
               >
                 {isStarting ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -191,16 +225,20 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               </button>
             </>
           )}
-          {/* Priority indicator - Linear style */}
-          <PriorityIcon priority={card.priority} />
           {stripHtml(card.solutionSummary) && (
-            <span className="text-xs bg-green-500/20 text-green-500 px-1.5 py-0.5 rounded">
-              Solution
+            <span
+              className="p-1 rounded bg-green-500/15 text-green-500"
+              title="Has solution"
+            >
+              <Lightbulb className="w-3 h-3" />
             </span>
           )}
           {stripHtml(card.testScenarios) && (
-            <span className="text-xs bg-blue-500/20 text-blue-500 px-1.5 py-0.5 rounded">
-              Tests
+            <span
+              className="p-1 rounded bg-blue-500/15 text-blue-500"
+              title="Has tests"
+            >
+              <FlaskConical className="w-3 h-3" />
             </span>
           )}
         </div>
