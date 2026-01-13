@@ -77,15 +77,22 @@ export async function GET(
 
     const documents: DocumentFile[] = [];
 
-    // Check for CLAUDE.md in root
-    const claudeMdPath = path.join(project.folderPath, "CLAUDE.md");
-    if (fs.existsSync(claudeMdPath)) {
-      documents.push({
-        name: "CLAUDE.md",
-        path: claudeMdPath,
-        relativePath: "CLAUDE.md",
-        isClaudeMd: true,
-      });
+    // Find all .md files in root directory
+    try {
+      const rootEntries = fs.readdirSync(project.folderPath, { withFileTypes: true });
+      for (const entry of rootEntries) {
+        if (entry.isFile() && entry.name.endsWith(".md")) {
+          const fullPath = path.join(project.folderPath, entry.name);
+          documents.push({
+            name: entry.name,
+            path: fullPath,
+            relativePath: entry.name,
+            isClaudeMd: entry.name === "CLAUDE.md",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error reading root directory:", error);
     }
 
     // Find all .md files in docs/ folder
