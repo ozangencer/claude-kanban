@@ -13,7 +13,37 @@ import {
 } from "@dnd-kit/core";
 import { useState } from "react";
 import { useKanbanStore } from "@/lib/store";
-import { COLUMNS, Card, Status } from "@/lib/types";
+import { COLUMNS, Card, Status, Priority, Complexity } from "@/lib/types";
+
+// Priority order: urgent > high > medium > low (descending)
+const PRIORITY_ORDER: Record<Priority, number> = {
+  urgent: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
+
+// Complexity order: low > medium > high (ascending)
+const COMPLEXITY_ORDER: Record<Complexity, number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+// Sort cards by priority (desc) then complexity (asc)
+function sortCards(cards: Card[]): Card[] {
+  return [...cards].sort((a, b) => {
+    // Primary: Priority descending (urgent first)
+    const priorityDiff =
+      (PRIORITY_ORDER[b.priority] || 2) - (PRIORITY_ORDER[a.priority] || 2);
+    if (priorityDiff !== 0) return priorityDiff;
+
+    // Secondary: Complexity ascending (low first)
+    return (
+      (COMPLEXITY_ORDER[a.complexity] || 2) - (COMPLEXITY_ORDER[b.complexity] || 2)
+    );
+  });
+}
 import { Column } from "./column";
 import { TaskCard } from "./card";
 
@@ -86,7 +116,7 @@ export function KanbanBoard() {
             key={column.id}
             id={column.id}
             title={column.title}
-            cards={filteredCards.filter((card) => card.status === column.id)}
+            cards={sortCards(filteredCards.filter((card) => card.status === column.id))}
           />
         ))}
       </div>

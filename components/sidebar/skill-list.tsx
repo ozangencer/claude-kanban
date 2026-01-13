@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useKanbanStore } from "@/lib/store";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronRight, Zap } from "lucide-react";
+import { ChevronRight, Zap, Check } from "lucide-react";
 
 export function SkillList() {
   const { skills, fetchSkills } = useKanbanStore();
+  const [copiedSkill, setCopiedSkill] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSkills();
@@ -18,6 +19,8 @@ export function SkillList() {
 
   const copyToClipboard = (skill: string) => {
     navigator.clipboard.writeText(`/${skill}`);
+    setCopiedSkill(skill);
+    setTimeout(() => setCopiedSkill(null), 1500);
   };
 
   if (skills.length === 0) return null;
@@ -38,8 +41,17 @@ export function SkillList() {
             className="w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-2"
             title="Click to copy"
           >
-            <span className="text-primary/70 font-mono text-xs">/</span>
-            <span className="truncate">{skill}</span>
+            {copiedSkill === skill ? (
+              <>
+                <Check className="h-3 w-3 text-green-500" />
+                <span className="text-green-500 text-xs">Copied!</span>
+              </>
+            ) : (
+              <>
+                <span className="text-primary/70 font-mono text-xs">/</span>
+                <span className="truncate">{skill}</span>
+              </>
+            )}
           </button>
         ))}
       </CollapsibleContent>

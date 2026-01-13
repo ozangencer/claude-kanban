@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useKanbanStore } from "@/lib/store";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronRight, Plug } from "lucide-react";
+import { ChevronRight, Plug, Check } from "lucide-react";
 
 export function McpList() {
   const { mcps, fetchMcps } = useKanbanStore();
+  const [copiedMcp, setCopiedMcp] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMcps();
@@ -18,6 +19,8 @@ export function McpList() {
 
   const copyToClipboard = (mcp: string) => {
     navigator.clipboard.writeText(`@${mcp}`);
+    setCopiedMcp(mcp);
+    setTimeout(() => setCopiedMcp(null), 1500);
   };
 
   if (mcps.length === 0) return null;
@@ -38,8 +41,17 @@ export function McpList() {
             className="w-full text-left px-3 py-1.5 rounded-md text-sm transition-colors text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-2"
             title="Click to copy"
           >
-            <span className="text-blue-500/70 font-mono text-xs">@</span>
-            <span className="truncate">{mcp}</span>
+            {copiedMcp === mcp ? (
+              <>
+                <Check className="h-3 w-3 text-green-500" />
+                <span className="text-green-500 text-xs">Copied!</span>
+              </>
+            ) : (
+              <>
+                <span className="text-blue-500/70 font-mono text-xs">@</span>
+                <span className="truncate">{mcp}</span>
+              </>
+            )}
           </button>
         ))}
       </CollapsibleContent>

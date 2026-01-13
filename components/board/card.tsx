@@ -68,7 +68,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
   });
 
   const isStarting = startingCardId === card.id;
-  const canStart = !!(card.description && (card.projectId || card.projectFolder));
+  const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed");
 
   const style = {
     transform: CSS.Translate.toString(transform),

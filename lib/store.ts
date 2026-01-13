@@ -23,6 +23,9 @@ interface KanbanStore {
   // Sidebar state
   isSidebarCollapsed: boolean;
 
+  // Column collapse state
+  collapsedColumns: Status[];
+
   // Skills & MCPs state
   skills: string[];
   mcps: string[];
@@ -71,6 +74,9 @@ interface KanbanStore {
   // Sidebar actions
   toggleSidebar: () => void;
 
+  // Column collapse actions
+  toggleColumnCollapse: (columnId: Status) => void;
+
   // Skills & MCPs actions
   fetchSkills: () => Promise<void>;
   fetchMcps: () => Promise<void>;
@@ -105,6 +111,9 @@ export const useKanbanStore = create<KanbanStore>((set, get) => ({
 
   // Sidebar initial state
   isSidebarCollapsed: false,
+
+  // Column collapse initial state
+  collapsedColumns: [],
 
   // Skills & MCPs initial state
   skills: [],
