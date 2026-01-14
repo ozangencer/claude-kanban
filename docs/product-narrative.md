@@ -55,17 +55,20 @@ Her kanban card'ı sadece bir "task kaydı" değil, **çalıştırılabilir bir 
 ```
 
 **Permission Mode:** `plan`
+
 - Claude sadece analiz edebilir
 - Dosya değiştiremez, komut çalıştıramaz
 - Kullanıcı planı görür, onaylar, sonra gerekirse manuel ilerler
 
 **Ne zaman kullanılır:**
+
 - Karmaşık kararlar gerektiren task'lar
 - Önce plan görmek, sonra execution'a karar vermek
 - Debugging ve exploration
 - Öğrenme amaçlı (Claude'un düşünce sürecini izlemek)
 
 **Teknik akış:**
+
 1. Card'ın `description`'ı prompt olarak alınır
 2. `projectFolder` veya `project.folderPath` working directory olur
 3. Seçili terminal uygulamasında yeni pencere açılır
@@ -79,17 +82,20 @@ Her kanban card'ı sadece bir "task kaydı" değil, **çalıştırılabilir bir 
 ```
 
 **Permission Mode:** `dontAsk`
+
 - Önceden izin verilen tool'ları otomatik kullanır
 - İzinsiz tool'ları otomatik reddeder
 - Kontrollü otonom execution
 
 **Ne zaman kullanılır:**
+
 - Well-defined, rutin task'lar
 - Batch processing (birden fazla low-priority task)
 - Gece/ara vermeden çalışması istenen işler
 - Güvenli ortamda tam otomasyon
 
 **Teknik akış:**
+
 1. API call: `POST /api/cards/{id}/start`
 2. `claude -p "{prompt}" --permission-mode dontAsk --output-format json` çalışır
 3. Claude önceden izin verilen tool'larla çalışır
@@ -174,19 +180,19 @@ Autonomous mode'un etkili çalışması için `~/.claude/settings.json` veya pro
 
 ### Phase Definitions
 
-| Phase | Trigger | Precondition | Action | Result |
-|-------|---------|--------------|--------|--------|
-| **Planning** | Play/Terminal | solutionSummary boş | Claude plan üretir | status → progress, solutionSummary dolar |
-| **Implementation** | Play/Terminal | solutionSummary dolu, testScenarios boş | Claude kodu yazar | status → test, testScenarios dolar |
-| **Re-test** | Play/Terminal | testScenarios dolu | Claude testleri çalıştırır | status değişmez |
+| Phase              | Trigger       | Precondition                            | Action                     | Result                                   |
+| ------------------ | ------------- | --------------------------------------- | -------------------------- | ---------------------------------------- |
+| **Planning**       | Play/Terminal | solutionSummary boş                     | Claude plan üretir         | status → progress, solutionSummary dolar |
+| **Implementation** | Play/Terminal | solutionSummary dolu, testScenarios boş | Claude kodu yazar          | status → test, testScenarios dolar       |
+| **Re-test**        | Play/Terminal | testScenarios dolu                      | Claude testleri çalıştırır | status değişmez                          |
 
 ### Dynamic Button Tooltips
 
-| Phase | Play Button | Terminal Button |
-|-------|-------------|-----------------|
-| Planning | "Plan Task (Autonomous)" | "Plan Task (Interactive)" |
+| Phase          | Play Button              | Terminal Button           |
+| -------------- | ------------------------ | ------------------------- |
+| Planning       | "Plan Task (Autonomous)" | "Plan Task (Interactive)" |
 | Implementation | "Implement (Autonomous)" | "Implement (Interactive)" |
-| Re-test | "Re-test (Autonomous)" | "Re-test (Interactive)" |
+| Re-test        | "Re-test (Autonomous)"   | "Re-test (Interactive)"   |
 
 ---
 
@@ -325,6 +331,7 @@ Fikirler girilir → Olgunlaşınca Backlog'a taşınır
 ```
 
 Bu aşamada card minimum bilgi içerir:
+
 - Title (kısa, açıklayıcı)
 - Rough description
 - Henüz proje bağlantısı olmayabilir
@@ -393,18 +400,20 @@ MCP Server:
 
 **İki farklı mod, iki farklı amaç:**
 
-| Buton | Mode | CLI Flag | Davranış |
-|-------|------|----------|----------|
-| Terminal (Turuncu) | `plan` | `--permission-mode plan` | Sadece analiz, execution yok |
-| Play (Mavi) | `dontAsk` | `--permission-mode dontAsk` | Otonom, önceden izinli tool'lar |
+| Buton              | Mode      | CLI Flag                    | Davranış                        |
+| ------------------ | --------- | --------------------------- | ------------------------------- |
+| Terminal (Turuncu) | `plan`    | `--permission-mode plan`    | Sadece analiz, execution yok    |
+| Play (Mavi)        | `dontAsk` | `--permission-mode dontAsk` | Otonom, önceden izinli tool'lar |
 
 **Neden `dontAsk` (Play için)?**
+
 - `plan` mode sadece analiz yapar, hiçbir şey çalıştırmaz - otonom execution için uygun değil
 - `dontAsk` mode önceden tanımlanmış `permissions.allow` kurallarına göre çalışır
 - İzinsiz tool'lar otomatik reddedilir - kontrollü güvenlik
 - `--dangerously-skip-permissions` tam otonom ama riskli - şimdilik tercih etmedik
 
 **Neden `plan` (Terminal için)?**
+
 - Kullanıcı önce planı görmek istiyor
 - Kararları kullanıcı veriyor
 - Öğrenme ve debugging için ideal
@@ -412,6 +421,7 @@ MCP Server:
 #### 2. Why SQLite + Drizzle?
 
 **Karar:** Solo founder için:
+
 - External DB dependency yok
 - Backup = tek dosya kopyala
 - Local-first, offline çalışır
@@ -420,11 +430,13 @@ MCP Server:
 #### 3. Why Not Full Agentic Loop Yet?
 
 **Risk analizi:**
+
 - Unsupervised code changes tehlikeli
 - Token cost kontrolsüz artabilir
 - Rollback mekanizması yok
 
 **Roadmap:**
+
 1. Plan mode (v0.3 - şu an) ✓
 2. Approved plan execution (v0.5)
 3. Auto-rollback with git (v0.6)
@@ -432,12 +444,12 @@ MCP Server:
 
 ### Technical Debt Awareness
 
-| Alan | Durum | Öneri |
-|------|-------|-------|
-| Error handling | Basit try/catch | Retry logic, exponential backoff |
-| State sync | Optimistic updates | WebSocket/SSE for real-time |
-| Test coverage | Yok | E2E with Playwright |
-| Authentication | Yok | Single-user, gerekli değil |
+| Alan           | Durum              | Öneri                            |
+| -------------- | ------------------ | -------------------------------- |
+| Error handling | Basit try/catch    | Retry logic, exponential backoff |
+| State sync     | Optimistic updates | WebSocket/SSE for real-time      |
+| Test coverage  | Yok                | E2E with Playwright              |
+| Authentication | Yok                | Single-user, gerekli değil       |
 
 ### Scalability Considerations
 
@@ -454,14 +466,14 @@ Ancak solo founder use case'i için over-engineering'den kaçınılmalı.
 
 ## Competitive Positioning
 
-| Feature | Linear | Notion | Claude Kanban |
-|---------|--------|--------|---------------|
-| Task tracking | ✓ | ✓ | ✓ |
-| AI assistance | × | ✓ (basic) | ✓ (deep) |
-| Code execution | × | × | ✓ |
-| Local-first | × | × | ✓ |
-| Claude native | × | × | ✓ |
-| Solo founder focus | × | × | ✓ |
+| Feature            | Linear | Notion    | Claude Kanban |
+| ------------------ | ------ | --------- | ------------- |
+| Task tracking      | ✓      | ✓         | ✓             |
+| AI assistance      | ×      | ✓ (basic) | ✓ (deep)      |
+| Code execution     | ×      | ×         | ✓             |
+| Local-first        | ×      | ×         | ✓             |
+| Claude native      | ×      | ×         | ✓             |
+| Solo founder focus | ×      | ×         | ✓             |
 
 **Unique Value Proposition:**
 

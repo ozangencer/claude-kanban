@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { Card } from "@/lib/types";
+import { ensureHtml } from "@/lib/markdown";
 
 export async function GET() {
   const rows = db.select().from(schema.cards).all();
@@ -59,9 +60,9 @@ export async function POST(request: NextRequest) {
   const newCard = {
     id: uuidv4(),
     title: body.title || "",
-    description: body.description || "",
-    solutionSummary: body.solutionSummary || "",
-    testScenarios: body.testScenarios || "",
+    description: ensureHtml(body.description || ""),
+    solutionSummary: ensureHtml(body.solutionSummary || ""),
+    testScenarios: ensureHtml(body.testScenarios || ""),
     status: body.status || "backlog",
     complexity: body.complexity || "medium",
     priority: body.priority || "medium",

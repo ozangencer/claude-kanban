@@ -17,6 +17,7 @@ export default function Home() {
     fetchProjects,
     isModalOpen,
     isLoading,
+    cards,
     searchQuery,
     setSearchQuery,
     isDocumentEditorOpen,
@@ -26,10 +27,32 @@ export default function Home() {
 
   useKeyboardShortcuts();
 
+  // Initial fetch
   useEffect(() => {
     fetchCards();
     fetchProjects();
   }, [fetchCards, fetchProjects]);
+
+  // Polling: Refresh cards every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchCards();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [fetchCards]);
+
+  // Focus refresh: Refresh when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchCards();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [fetchCards]);
 
   // Get active project name for display
   const activeProject = projects.find((p) => p.id === activeProjectId);
@@ -81,8 +104,8 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Board */}
-        {isLoading ? (
+        {/* Board - only show loading on initial fetch, not on polling */}
+        {isLoading && cards.length === 0 ? (
           <div className="flex items-center justify-center h-64">
             <p className="text-muted-foreground">Loading...</p>
           </div>

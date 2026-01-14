@@ -9,6 +9,7 @@ import Database from "better-sqlite3";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { marked } from "marked";
+import { v4 as uuidv4 } from "uuid";
 
 // Configure marked for Tiptap-compatible HTML
 marked.setOptions({
@@ -181,6 +182,47 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "create_card",
+        description: "Create a new kanban card. Markdown content in description and solutionSummary will be converted to HTML. Test scenarios should be added after implementation using save_tests.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+              description: "Card title (required)",
+            },
+            description: {
+              type: "string",
+              description: "Card description in markdown format",
+            },
+            solutionSummary: {
+              type: "string",
+              description: "Solution plan in markdown format",
+            },
+            status: {
+              type: "string",
+              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed"],
+              description: "Card status/column (default: backlog)",
+            },
+            complexity: {
+              type: "string",
+              enum: ["simple", "medium", "complex"],
+              description: "Task complexity (default: medium)",
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "medium", "high"],
+              description: "Task priority (default: medium)",
+            },
+            projectId: {
+              type: "string",
+              description: "Project ID to associate with (optional)",
+            },
+          },
+          required: ["title"],
+        },
+      },
+      {
         name: "save_plan",
         description: "Save a solution plan to a card and move it to In Progress. Use this when you've completed planning a task.",
         inputSchema: {
@@ -257,6 +299,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "update_card": {
         const { id, ...updates } = args as { id: string } & Partial<Card>;
 
+        // Fields that need markdown to HTML conversion
+        const markdownFields = ["description", "solutionSummary", "testScenarios"];
+
         // Build SET clause dynamically
         const fieldMap: Record<string, string> = {
           title: "title",
@@ -274,7 +319,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         for (const [key, value] of Object.entries(updates)) {
           if (fieldMap[key] && value !== undefined) {
             setClauses.push(`${fieldMap[key]} = ?`);
-            values.push(value);
+            // Convert markdown to HTML for rich text fields
+            if (markdownFields.includes(key) && typeof value === "string") {
+              values.push(markdownToTiptapHtml(value));
+            } else {
+              values.push(value);
+            }
           }
         }
 
@@ -353,6 +403,74 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         return {
           content: [{ type: "text", text: JSON.stringify(cards, null, 2) }],
+        };
+      }
+
+      case "create_card": {
+        const {
+          title,
+          description = "",
+          solutionSummary = "",
+          status = "backlog",
+          complexity = "medium",
+          priority = "medium",
+          projectId = null,
+        } = args as {
+          title: string;
+          description?: string;
+          solutionSummary?: string;
+          status?: Status;
+          complexity?: string;
+          priority?: string;
+          projectId?: string | null;
+        };
+
+        const now = new Date().toISOString();
+        let taskNumber: number | null = null;
+        let projectFolder = "";
+
+        // If projectId provided, get next task number
+        if (projectId) {
+          const project = db.prepare(`
+            SELECT id, folder_path, next_task_number FROM projects WHERE id = ?
+          `).get(projectId) as { id: string; folder_path: string; next_task_number: number } | undefined;
+
+          if (project) {
+            taskNumber = project.next_task_number;
+            projectFolder = project.folder_path;
+
+            // Increment project's nextTaskNumber
+            db.prepare(`
+              UPDATE projects SET next_task_number = ?, updated_at = ? WHERE id = ?
+            `).run(project.next_task_number + 1, now, projectId);
+          }
+        }
+
+        const cardId = uuidv4();
+        db.prepare(`
+          INSERT INTO cards (
+            id, title, description, solution_summary, test_scenarios,
+            status, complexity, priority, project_folder, project_id,
+            task_number, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          cardId,
+          title,
+          markdownToTiptapHtml(description),
+          markdownToTiptapHtml(solutionSummary),
+          "", // Test scenarios added after implementation via save_tests
+          status,
+          complexity,
+          priority,
+          projectFolder,
+          projectId,
+          taskNumber,
+          now,
+          now
+        );
+
+        return {
+          content: [{ type: "text", text: `Card created: ${cardId} (${title})` }],
         };
       }
 

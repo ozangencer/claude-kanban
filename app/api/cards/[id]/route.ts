@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { Card } from "@/lib/types";
+import { ensureHtml } from "@/lib/markdown";
 
 export async function PUT(
   request: NextRequest,
@@ -51,9 +52,9 @@ export async function PUT(
 
   const updatedCard = {
     title: body.title ?? existing.title,
-    description: body.description ?? existing.description,
-    solutionSummary: body.solutionSummary ?? existing.solutionSummary,
-    testScenarios: body.testScenarios ?? existing.testScenarios,
+    description: body.description !== undefined ? ensureHtml(body.description) : existing.description,
+    solutionSummary: body.solutionSummary !== undefined ? ensureHtml(body.solutionSummary) : existing.solutionSummary,
+    testScenarios: body.testScenarios !== undefined ? ensureHtml(body.testScenarios) : existing.testScenarios,
     status: body.status ?? existing.status,
     complexity: body.complexity ?? existing.complexity,
     priority: body.priority ?? existing.priority,

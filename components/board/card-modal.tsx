@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useKanbanStore } from "@/lib/store";
 import {
   COLUMNS,
@@ -37,7 +37,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { X, ChevronRight } from "lucide-react";
+import { X, ChevronRight, ArrowLeft } from "lucide-react";
 
 // Strip HTML tags for preview text
 function stripHtml(html: string): string {
@@ -56,7 +56,7 @@ function ChevronIcon({ isOpen }: { isOpen: boolean }) {
 }
 
 export function CardModal() {
-  const { selectedCard, closeModal, updateCard, deleteCard, projects } =
+  const { selectedCard, closeModal, updateCard, deleteCard, projects, cards, selectCard, openModal } =
     useKanbanStore();
 
   const [title, setTitle] = useState("");
@@ -76,6 +76,9 @@ export function CardModal() {
 
   // Unsaved changes dialog state
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+
+  // Card navigation history for back button
+  const [cardHistory, setCardHistory] = useState<string[]>([]);
 
   // Track unsaved changes
   const hasUnsavedChanges = selectedCard && (
@@ -117,7 +120,38 @@ export function CardModal() {
     }
   }, [selectedCard]);
 
+  // Handle card mention click - open another card
+  const handleCardClick = (cardId: string) => {
+    const card = cards.find((c) => c.id === cardId);
+    if (card && card.id !== selectedCard?.id) {
+      // Save current card to history before navigating
+      if (selectedCard) {
+        setCardHistory((prev) => [...prev, selectedCard.id]);
+      }
+      selectCard(card);
+      openModal();
+    }
+  };
+
+  // Handle back navigation
+  const handleBack = () => {
+    if (cardHistory.length > 0) {
+      const newHistory = [...cardHistory];
+      const previousCardId = newHistory.pop();
+      setCardHistory(newHistory);
+
+      if (previousCardId) {
+        const previousCard = cards.find((c) => c.id === previousCardId);
+        if (previousCard) {
+          selectCard(previousCard);
+        }
+      }
+    }
+  };
+
+  // Clear history when modal closes
   const handleClose = () => {
+    setCardHistory([]);
     setIsVisible(false);
     setTimeout(() => closeModal(), 200);
   };
@@ -208,14 +242,27 @@ export function CardModal() {
               placeholder="Task title"
             />
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClose}
-            className="text-muted-foreground hover:text-foreground shrink-0"
-          >
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            {cardHistory.length > 0 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleBack}
+                className="text-muted-foreground hover:text-foreground"
+                title="Go back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleClose}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
@@ -398,6 +445,7 @@ export function CardModal() {
                 onChange={setDescription}
                 placeholder="Describe the task..."
                 minHeight="120px"
+                onCardClick={handleCardClick}
               />
             </CollapsibleContent>
           </Collapsible>
@@ -419,6 +467,7 @@ export function CardModal() {
                 onChange={setSolutionSummary}
                 placeholder="Document the agreed solution..."
                 minHeight="150px"
+                onCardClick={handleCardClick}
               />
             </CollapsibleContent>
           </Collapsible>
@@ -440,6 +489,7 @@ export function CardModal() {
                 onChange={setTestScenarios}
                 placeholder="- [ ] Test case 1&#10;- [ ] Test case 2"
                 minHeight="150px"
+                onCardClick={handleCardClick}
               />
             </CollapsibleContent>
           </Collapsible>

@@ -278,6 +278,34 @@ button:disabled {
   @apply bg-blue-500/20 text-blue-400;
 }
 
+.card-mention {
+  @apply bg-emerald-500/20 text-emerald-400 cursor-pointer transition-colors;
+}
+
+.card-mention:hover {
+  @apply bg-emerald-500/30 underline;
+}
+
+/* Card preview tooltip - needs !important to override global tippy styles */
+.tippy-box[data-theme~='card-preview'] {
+  background: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3) !important;
+}
+
+.tippy-box[data-theme~='card-preview'] .tippy-content {
+  padding: 14px 16px !important;
+}
+
+.tippy-box[data-theme~='card-preview'] .tippy-arrow {
+  color: hsl(var(--popover));
+}
+
+.card-preview-tooltip {
+  color: hsl(var(--foreground));
+}
+
 /* Tippy tooltip styles */
 .tippy-box {
   background: transparent !important;

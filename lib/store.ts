@@ -33,6 +33,7 @@ interface KanbanStore {
 
   // Claude integration state
   startingCardId: string | null;
+  quickFixingCardId: string | null;
 
   // Settings state
   settings: AppSettings | null;
@@ -85,6 +86,7 @@ interface KanbanStore {
   // Claude integration actions
   startTask: (cardId: string) => Promise<{ success: boolean; error?: string }>;
   openTerminal: (cardId: string) => Promise<{ success: boolean; error?: string }>;
+  quickFixTask: (cardId: string) => Promise<{ success: boolean; error?: string }>;
 
   // Settings actions
   fetchSettings: () => Promise<void>;
@@ -124,6 +126,7 @@ export const useKanbanStore = create<KanbanStore>()(
 
   // Claude integration initial state
   startingCardId: null,
+  quickFixingCardId: null,
 
   // Settings initial state
   settings: null,
@@ -509,6 +512,48 @@ export const useKanbanStore = create<KanbanStore>()(
       return { success: true, phase: data.phase, newStatus: data.newStatus, message: data.message };
     } catch (error) {
       console.error("Failed to open terminal:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+
+  quickFixTask: async (cardId) => {
+    set({ quickFixingCardId: cardId });
+
+    try {
+      const response = await fetch(`/api/cards/${cardId}/quick-fix`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        set({ quickFixingCardId: null });
+        return { success: false, error: data.error || "Failed to quick fix" };
+      }
+
+      // Update card with results
+      set((state) => ({
+        cards: state.cards.map((card) => {
+          if (card.id !== cardId) return card;
+
+          return {
+            ...card,
+            status: data.newStatus,
+            solutionSummary: data.solutionSummary,
+            testScenarios: data.testScenarios,
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+        quickFixingCardId: null,
+      }));
+
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to quick fix:", error);
+      set({ quickFixingCardId: null });
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",

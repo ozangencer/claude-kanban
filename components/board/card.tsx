@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, COLUMNS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2 } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -112,14 +112,17 @@ function getPhaseLabels(phase: Phase): { play: string; terminal: string } {
 }
 
 export function TaskCard({ card, isDragging = false }: TaskCardProps) {
-  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, moveCard, deleteCard } = useKanbanStore();
+  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, moveCard, deleteCard, quickFixTask, quickFixingCardId } = useKanbanStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showQuickFixConfirm, setShowQuickFixConfirm] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
     id: card.id,
   });
 
   const isStarting = startingCardId === card.id;
+  const isQuickFixing = quickFixingCardId === card.id;
   const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed" && card.status !== "test");
+  const canQuickFix = card.status === "bugs" && !!(card.description && (card.projectId || card.projectFolder));
 
   // Detect current phase for dynamic tooltips
   const phase = detectPhase(card);
@@ -156,6 +159,21 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
     const result = await openTerminal(card.id);
     if (!result.success) {
       console.error("Failed to open terminal:", result.error);
+    }
+  };
+
+  const handleQuickFixClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowQuickFixConfirm(true);
+  };
+
+  const handleQuickFix = async () => {
+    setShowQuickFixConfirm(false);
+    if (isQuickFixing || !canQuickFix) return;
+
+    const result = await quickFixTask(card.id);
+    if (!result.success) {
+      console.error("Failed to quick fix:", result.error);
     }
   };
 
@@ -223,6 +241,24 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
 
               {/* Badges and Action Buttons */}
               <div className="flex items-center gap-1">
+                {canQuickFix && (
+                  <button
+                    onClick={handleQuickFixClick}
+                    disabled={isQuickFixing}
+                    className={`p-1 rounded transition-colors ${
+                      isQuickFixing
+                        ? "bg-yellow-500/20 text-yellow-500 cursor-wait"
+                        : "bg-yellow-500/10 text-yellow-500/70 hover:bg-yellow-500/20 hover:text-yellow-500"
+                    }`}
+                    title={isQuickFixing ? "Quick fixing..." : "Quick Fix (No Plan)"}
+                  >
+                    {isQuickFixing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
                 {canStart && (
                   <>
                     <button
@@ -318,6 +354,29 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               className="bg-red-500 hover:bg-red-600"
             >
               Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showQuickFixConfirm} onOpenChange={setShowQuickFixConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Quick Fix Mode</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu kartı quick-fix modunda başlatmak istediğine emin misin?
+              <br /><br />
+              <strong>Dikkat:</strong> Plan yazılmayacak ve Claude tam dosya erişimi ile çalışacak.
+              Bug fix tamamlandıktan sonra kart otomatik olarak Human Test sütununa taşınacak.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleQuickFix}
+              className="bg-yellow-500 hover:bg-yellow-600 text-black"
+            >
+              Quick Fix Başlat
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
