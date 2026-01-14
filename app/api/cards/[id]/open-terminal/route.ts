@@ -202,7 +202,8 @@ export async function POST(
     const cleanPrompt = prompt.replace(/\n/g, " ");
 
     // Note: kanban MCP server is globally configured via `claude mcp add`
-    const claudeCommand = `cd "${workingDir}" && claude "${cleanPrompt}" --permission-mode plan`;
+    // KANBAN_CARD_ID env var is used by the hook to detect kanban sessions
+    const claudeCommand = `cd "${workingDir}" && KANBAN_CARD_ID="${id}" claude "${cleanPrompt}" --permission-mode plan`;
 
     console.log(`[Open Terminal] Working dir: ${workingDir}`);
     console.log(`[Open Terminal] Prompt length: ${prompt.length} chars`);

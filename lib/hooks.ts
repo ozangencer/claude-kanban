@@ -10,7 +10,7 @@ const KANBAN_HOOK = {
           {
             type: "command",
             command:
-              "echo '⚠️ KANBAN REMINDER: Planı kartına kaydetmeyi unutma → mcp__kanban__save_plan kullan'",
+              "if [ -z \"$KANBAN_CARD_ID\" ]; then exit 0; fi; echo '⚠️ KANBAN REMINDER: Don't forget to save the plan to your card → use mcp__kanban__save_plan'",
           },
         ],
       },

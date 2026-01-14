@@ -16,6 +16,9 @@ export default function Home() {
     fetchCards,
     fetchProjects,
     fetchSettings,
+    fetchSkills,
+    fetchMcps,
+    fetchDocuments,
     isModalOpen,
     isLoading,
     cards,
@@ -33,28 +36,40 @@ export default function Home() {
     fetchCards();
     fetchProjects();
     fetchSettings();
-  }, [fetchCards, fetchProjects, fetchSettings]);
+    fetchSkills();
+    fetchMcps();
+  }, [fetchCards, fetchProjects, fetchSettings, fetchSkills, fetchMcps]);
 
-  // Polling: Refresh cards every 10 seconds
+  // Polling: Refresh data every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       fetchCards();
+      fetchSkills();
+      fetchMcps();
+      if (activeProjectId) {
+        fetchDocuments(activeProjectId);
+      }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [fetchCards]);
+  }, [fetchCards, fetchSkills, fetchMcps, fetchDocuments, activeProjectId]);
 
   // Focus refresh: Refresh when tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         fetchCards();
+        fetchSkills();
+        fetchMcps();
+        if (activeProjectId) {
+          fetchDocuments(activeProjectId);
+        }
       }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [fetchCards]);
+  }, [fetchCards, fetchSkills, fetchMcps, fetchDocuments, activeProjectId]);
 
   // Get active project name for display
   const activeProject = projects.find((p) => p.id === activeProjectId);

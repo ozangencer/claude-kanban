@@ -2,8 +2,9 @@ import { ReactRenderer } from "@tiptap/react";
 import tippy, { Instance, Props } from "tippy.js";
 import { MentionPopup, MentionPopupRef, MentionItem } from "@/components/ui/mention-popup";
 import { CardMentionPopup, CardMentionPopupRef, CardMentionItem } from "@/components/ui/card-mention-popup";
+import { DocumentMentionPopup, DocumentMentionPopupRef, DocumentMentionItem } from "@/components/ui/document-mention-popup";
 import { SuggestionOptions, SuggestionProps } from "@tiptap/suggestion";
-import { Card, Project, getDisplayId } from "@/lib/types";
+import { Card, Project, DocumentFile, getDisplayId } from "@/lib/types";
 
 interface SuggestionConfig {
   char: string;
@@ -247,6 +248,124 @@ export function createCardSuggestion(
         },
 
         onUpdate(props: SuggestionProps<CardMentionItem>) {
+          component.updateProps({
+            items: props.items,
+            command: props.command,
+          });
+
+          if (!props.clientRect) {
+            return;
+          }
+
+          popup[0].setProps({
+            getReferenceClientRect: props.clientRect as () => DOMRect,
+          });
+        },
+
+        onKeyDown(props: { event: KeyboardEvent }) {
+          if (props.event.key === "Escape") {
+            popup[0].hide();
+            return true;
+          }
+
+          return component.ref?.onKeyDown(props.event) ?? false;
+        },
+
+        onExit() {
+          popup[0].destroy();
+          component.destroy();
+        },
+      };
+    },
+  };
+}
+
+// Document suggestion for # trigger
+interface DocumentSuggestionConfig {
+  documents: DocumentFile[];
+}
+
+export function createDocumentSuggestion(
+  config: DocumentSuggestionConfig
+): Omit<SuggestionOptions<DocumentMentionItem>, "editor"> {
+  return {
+    char: "#",
+    allowSpaces: false,
+    startOfLine: false,
+
+    items: ({ query }) => {
+      const searchQuery = query.toLowerCase();
+
+      return config.documents
+        .map((doc) => ({
+          id: doc.relativePath,
+          name: doc.name,
+          relativePath: doc.relativePath,
+          isClaudeMd: doc.isClaudeMd,
+        }))
+        .filter((item) => {
+          if (!searchQuery) return true;
+          return (
+            item.name.toLowerCase().includes(searchQuery) ||
+            item.relativePath.toLowerCase().includes(searchQuery)
+          );
+        })
+        .sort((a, b) => {
+          // CLAUDE.md files first
+          if (a.isClaudeMd !== b.isClaudeMd) return a.isClaudeMd ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 10);
+    },
+
+    command: ({ editor, range, props }) => {
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(range, [
+          {
+            type: "documentMention",
+            attrs: {
+              id: props.id,
+              name: props.name,
+              path: props.relativePath,
+              isClaudeMd: props.isClaudeMd,
+            },
+          },
+        ])
+        .run();
+    },
+
+    render: () => {
+      let component: ReactRenderer<DocumentMentionPopupRef>;
+      let popup: Instance<Props>[];
+
+      return {
+        onStart: (props: SuggestionProps<DocumentMentionItem>) => {
+          component = new ReactRenderer(DocumentMentionPopup, {
+            props: {
+              items: props.items,
+              command: props.command,
+            },
+            editor: props.editor,
+          });
+
+          if (!props.clientRect) {
+            return;
+          }
+
+          popup = tippy("body", {
+            getReferenceClientRect: props.clientRect as () => DOMRect,
+            appendTo: () => document.body,
+            content: component.element,
+            showOnCreate: true,
+            interactive: true,
+            trigger: "manual",
+            placement: "bottom-start",
+          });
+        },
+
+        onUpdate(props: SuggestionProps<DocumentMentionItem>) {
           component.updateProps({
             items: props.items,
             command: props.command,

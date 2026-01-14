@@ -216,7 +216,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <div className="grid gap-2">
             <label className="text-sm font-medium">Claude Code Hooks</label>
             <p className="text-xs text-muted-foreground mb-2">
-              ExitPlanMode sonrası kanban kartına plan kaydetme hatırlatıcısı kurar
+              Sets up reminder to save plans to kanban cards after ExitPlanMode
             </p>
             <div className="flex items-center gap-3">
               <Button
@@ -227,25 +227,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 className="gap-2"
               >
                 <RefreshCw className={`h-4 w-4 ${isReinstallingHooks ? "animate-spin" : ""}`} />
-                {isReinstallingHooks ? "Kuruluyor..." : "Hook'ları Kur"}
+                {isReinstallingHooks ? "Installing..." : "Install Hooks"}
               </Button>
               {hookResult && (
                 <div className="flex items-center gap-2 text-sm">
                   {hookResult.failed === -1 ? (
                     <span className="text-destructive flex items-center gap-1">
                       <AlertCircle className="h-4 w-4" />
-                      Hata oluştu
+                      Error occurred
                     </span>
                   ) : (
                     <>
                       <span className="text-green-500 flex items-center gap-1">
                         <Check className="h-4 w-4" />
-                        {hookResult.success} başarılı
+                        {hookResult.success} successful
                       </span>
                       {hookResult.failed > 0 && (
                         <span className="text-destructive flex items-center gap-1">
                           <AlertCircle className="h-4 w-4" />
-                          {hookResult.failed} başarısız
+                          {hookResult.failed} failed
                         </span>
                       )}
                     </>

@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { useState } from "react";
 import { useKanbanStore } from "@/lib/store";
-import { COLUMNS, Card, Status, Priority, Complexity } from "@/lib/types";
+import { COLUMNS, Card, Status, Priority, Complexity, CompletedRetention } from "@/lib/types";
 
 // Priority order: high > medium > low (descending)
 const PRIORITY_ORDER: Record<Priority, number> = {
@@ -28,6 +28,35 @@ const COMPLEXITY_ORDER: Record<Complexity, number> = {
   medium: 2,
   high: 3,
 };
+
+// Filter completed cards by retention setting
+function filterByRetention(cards: Card[], retention: CompletedRetention): Card[] {
+  if (retention === 'all') return cards;
+
+  const now = new Date();
+  const cutoff = new Date();
+
+  switch (retention) {
+    case 'week':
+      cutoff.setDate(now.getDate() - 7);
+      break;
+    case '2weeks':
+      cutoff.setDate(now.getDate() - 14);
+      break;
+    case 'month':
+      cutoff.setMonth(now.getMonth() - 1);
+      break;
+    case '3months':
+      cutoff.setMonth(now.getMonth() - 3);
+      break;
+  }
+
+  return cards.filter(card => {
+    // Use completedAt if available, otherwise fall back to updatedAt for legacy cards
+    const dateToCheck = card.completedAt || card.updatedAt;
+    return new Date(dateToCheck) >= cutoff;
+  });
+}
 
 // Sort cards by priority (desc) then complexity (asc)
 function sortCards(cards: Card[]): Card[] {
@@ -47,7 +76,7 @@ import { Column } from "./column";
 import { TaskCard } from "./card";
 
 export function KanbanBoard() {
-  const { cards, activeProjectId, searchQuery, moveCard } = useKanbanStore();
+  const { cards, activeProjectId, searchQuery, moveCard, completedRetention } = useKanbanStore();
   const [activeCard, setActiveCard] = useState<Card | null>(null);
 
   const sensors = useSensors(
@@ -110,14 +139,21 @@ export function KanbanBoard() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 p-6 overflow-x-auto min-h-[calc(100vh-80px)]">
-        {COLUMNS.map((column) => (
-          <Column
-            key={column.id}
-            id={column.id}
-            title={column.title}
-            cards={sortCards(filteredCards.filter((card) => card.status === column.id))}
-          />
-        ))}
+        {COLUMNS.map((column) => {
+          let columnCards = filteredCards.filter((card) => card.status === column.id);
+          // Apply retention filter only to completed column
+          if (column.id === 'completed') {
+            columnCards = filterByRetention(columnCards, completedRetention);
+          }
+          return (
+            <Column
+              key={column.id}
+              id={column.id}
+              title={column.title}
+              cards={sortCards(columnCards)}
+            />
+          );
+        })}
       </div>
       <DragOverlay
         dropAnimation={{

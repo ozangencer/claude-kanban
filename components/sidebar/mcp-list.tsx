@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useKanbanStore } from "@/lib/store";
 import {
   Collapsible,
@@ -10,12 +10,8 @@ import {
 import { ChevronRight, Plug, Check } from "lucide-react";
 
 export function McpList() {
-  const { mcps, fetchMcps } = useKanbanStore();
+  const { mcps } = useKanbanStore();
   const [copiedMcp, setCopiedMcp] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchMcps();
-  }, [fetchMcps]);
 
   const copyToClipboard = (mcp: string) => {
     navigator.clipboard.writeText(`@${mcp}`);

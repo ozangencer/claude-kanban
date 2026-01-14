@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -z \"$KANBAN_CARD_ID\" ]; then exit 0; fi; echo '⚠️ KANBAN REMINDER: Don't forget to save the plan to your card → use mcp__kanban__save_plan'"
+          }
+        ]
+      }
+    ]
+  }
+}

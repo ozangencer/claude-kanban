@@ -17,6 +17,7 @@ export async function GET() {
         nextTaskNumber: row.nextTaskNumber,
         color: row.color,
         isPinned: row.isPinned,
+        documentPaths: row.documentPaths ? JSON.parse(row.documentPaths) : null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       }))
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
       nextTaskNumber: 1,
       color: body.color || "#5e6ad2",
       isPinned: body.isPinned || false,
+      documentPaths: body.documentPaths ? JSON.stringify(body.documentPaths) : null,
       createdAt: now,
       updatedAt: now,
     };
@@ -70,7 +72,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(newProject, { status: 201 });
+    // Return with documentPaths as array (not JSON string)
+    const responseProject = {
+      ...newProject,
+      documentPaths: body.documentPaths || null,
+    };
+    return NextResponse.json(responseProject, { status: 201 });
   } catch (error) {
     console.error("Failed to create project:", error);
     return NextResponse.json(

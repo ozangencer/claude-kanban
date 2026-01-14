@@ -47,6 +47,7 @@ export function useKeyboardShortcuts() {
             description: "",
             solutionSummary: "",
             testScenarios: "",
+            aiOpinion: "",
             status: "backlog",
             complexity: "medium",
             priority: "medium",

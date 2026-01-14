@@ -14,6 +14,7 @@ export async function GET() {
     description: row.description,
     solutionSummary: row.solutionSummary,
     testScenarios: row.testScenarios,
+    aiOpinion: row.aiOpinion,
     status: row.status as Card["status"],
     complexity: row.complexity as Card["complexity"],
     priority: row.priority as Card["priority"],
@@ -22,6 +23,7 @@ export async function GET() {
     taskNumber: row.taskNumber,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    completedAt: row.completedAt,
   }));
 
   return NextResponse.json(cards);
@@ -63,6 +65,7 @@ export async function POST(request: NextRequest) {
     description: ensureHtml(body.description || ""),
     solutionSummary: ensureHtml(body.solutionSummary || ""),
     testScenarios: ensureHtml(body.testScenarios || ""),
+    aiOpinion: ensureHtml(body.aiOpinion || ""),
     status: body.status || "backlog",
     complexity: body.complexity || "medium",
     priority: body.priority || "medium",
@@ -71,6 +74,7 @@ export async function POST(request: NextRequest) {
     taskNumber,
     createdAt: now,
     updatedAt: now,
+    completedAt: (body.status === 'completed') ? now : null,
   };
 
   db.insert(schema.cards).values(newCard).run();

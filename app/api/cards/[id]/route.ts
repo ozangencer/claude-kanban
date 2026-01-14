@@ -25,6 +25,19 @@ export async function PUT(
   const newProjectId = body.projectId !== undefined ? body.projectId : existing.projectId;
   let taskNumber = existing.taskNumber;
 
+  // Handle completedAt timestamp based on status transition
+  const oldStatus = existing.status;
+  const newStatus = body.status ?? existing.status;
+  let completedAt = existing.completedAt;
+
+  if (newStatus === 'completed' && oldStatus !== 'completed') {
+    // Moving TO completed: set timestamp
+    completedAt = now;
+  } else if (newStatus !== 'completed' && oldStatus === 'completed') {
+    // Moving FROM completed: clear timestamp
+    completedAt = null;
+  }
+
   // If projectId changed and new project is selected, assign new taskNumber
   if (newProjectId !== existing.projectId && newProjectId !== null) {
     const project = db
@@ -55,6 +68,7 @@ export async function PUT(
     description: body.description !== undefined ? ensureHtml(body.description) : existing.description,
     solutionSummary: body.solutionSummary !== undefined ? ensureHtml(body.solutionSummary) : existing.solutionSummary,
     testScenarios: body.testScenarios !== undefined ? ensureHtml(body.testScenarios) : existing.testScenarios,
+    aiOpinion: body.aiOpinion !== undefined ? ensureHtml(body.aiOpinion) : existing.aiOpinion,
     status: body.status ?? existing.status,
     complexity: body.complexity ?? existing.complexity,
     priority: body.priority ?? existing.priority,
@@ -62,6 +76,7 @@ export async function PUT(
     projectId: newProjectId,
     taskNumber,
     updatedAt: now,
+    completedAt,
   };
 
   db.update(schema.cards)
@@ -75,6 +90,7 @@ export async function PUT(
     description: updatedCard.description,
     solutionSummary: updatedCard.solutionSummary,
     testScenarios: updatedCard.testScenarios,
+    aiOpinion: updatedCard.aiOpinion,
     status: updatedCard.status as Card["status"],
     complexity: updatedCard.complexity as Card["complexity"],
     priority: updatedCard.priority as Card["priority"],
@@ -83,6 +99,7 @@ export async function PUT(
     taskNumber: updatedCard.taskNumber,
     createdAt: existing.createdAt,
     updatedAt: updatedCard.updatedAt,
+    completedAt: updatedCard.completedAt,
   };
 
   return NextResponse.json(result);

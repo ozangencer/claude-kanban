@@ -7,8 +7,8 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { useEffect, useRef, useMemo, useCallback } from "react";
 import { useKanbanStore } from "@/lib/store";
-import { SkillMention, McpMention, CardMention } from "@/lib/mention-extension";
-import { createSuggestion, createCardSuggestion } from "@/lib/suggestion";
+import { SkillMention, McpMention, CardMention, DocumentMention } from "@/lib/mention-extension";
+import { createSuggestion, createCardSuggestion, createDocumentSuggestion } from "@/lib/suggestion";
 import { getDisplayId } from "@/lib/types";
 import tippy, { Instance } from "tippy.js";
 
@@ -37,7 +37,7 @@ export function MarkdownEditor({
   const isUpdatingFromExternal = useRef(false);
   const lastSyncedValue = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { skills, mcps, cards, projects, activeProjectId } = useKanbanStore();
+  const { skills, mcps, cards, projects, activeProjectId, documents } = useKanbanStore();
 
   const skillSuggestion = useMemo(
     () => createSuggestion({ char: "/", items: skills, prefix: "/", nodeType: "skillMention" }),
@@ -52,6 +52,11 @@ export function MarkdownEditor({
   const cardSuggestion = useMemo(
     () => createCardSuggestion({ cards, projects, activeProjectId }),
     [cards, projects, activeProjectId]
+  );
+
+  const documentSuggestion = useMemo(
+    () => createDocumentSuggestion({ documents }),
+    [documents]
   );
 
   const editor = useEditor({
@@ -78,6 +83,9 @@ export function MarkdownEditor({
       }),
       CardMention.configure({
         suggestion: cardSuggestion,
+      }),
+      DocumentMention.configure({
+        suggestion: documentSuggestion,
       }),
     ],
     content: "",
@@ -135,9 +143,9 @@ export function MarkdownEditor({
         content.className = "card-preview-tooltip";
         content.style.maxWidth = "320px";
         content.innerHTML = `
-          <div style="font-weight: 600; font-size: 14px; line-height: 1.4;">${displayId ? `<span style="color: #60a5fa; margin-right: 8px;">${displayId}</span>` : ""}${card.title}</div>
-          <div style="font-size: 12px; color: #9ca3af; margin-top: 6px; text-transform: capitalize;">${card.status.replace("progress", "in progress")}${project ? ` · ${project.name}` : ""}</div>
-          ${descriptionPreview ? `<div style="font-size: 13px; color: #d1d5db; margin-top: 10px; line-height: 1.5;">${descriptionPreview}${card.description.length > 120 ? "..." : ""}</div>` : ""}
+          <div class="tooltip-title">${displayId ? `<span class="tooltip-id">${displayId}</span>` : ""}${card.title}</div>
+          <div class="tooltip-meta">${card.status.replace("progress", "in progress")}${project ? ` · ${project.name}` : ""}</div>
+          ${descriptionPreview ? `<div class="tooltip-description">${descriptionPreview}${card.description.length > 120 ? "..." : ""}</div>` : ""}
         `;
 
         tippy(mention as HTMLElement, {

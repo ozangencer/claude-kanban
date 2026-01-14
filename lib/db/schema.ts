@@ -9,6 +9,7 @@ export const projects = sqliteTable("projects", {
   nextTaskNumber: integer("next_task_number").notNull().default(1),
   color: text("color").notNull().default("#5e6ad2"),
   isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false),
+  documentPaths: text("document_paths"), // JSON array of custom document paths, null = smart discovery
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -23,6 +24,7 @@ export const cards = sqliteTable("cards", {
   description: text("description").notNull().default(""),
   solutionSummary: text("solution_summary").notNull().default(""),
   testScenarios: text("test_scenarios").notNull().default(""),
+  aiOpinion: text("ai_opinion").notNull().default(""),
   status: text("status").notNull().default("backlog"),
   complexity: text("complexity").notNull().default("medium"),
   priority: text("priority").notNull().default("medium"),
@@ -31,6 +33,7 @@ export const cards = sqliteTable("cards", {
   taskNumber: integer("task_number"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
+  completedAt: text("completed_at"),  // ISO date string, null if not completed
 });
 
 export type CardRecord = typeof cards.$inferSelect;

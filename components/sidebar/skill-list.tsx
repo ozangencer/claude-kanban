@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useKanbanStore } from "@/lib/store";
 import {
   Collapsible,
@@ -10,12 +10,8 @@ import {
 import { ChevronRight, Zap, Check } from "lucide-react";
 
 export function SkillList() {
-  const { skills, fetchSkills } = useKanbanStore();
+  const { skills } = useKanbanStore();
   const [copiedSkill, setCopiedSkill] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchSkills();
-  }, [fetchSkills]);
 
   const copyToClipboard = (skill: string) => {
     navigator.clipboard.writeText(`/${skill}`);

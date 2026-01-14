@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, COLUMNS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -26,6 +26,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Strip HTML tags for preview text
 function stripHtml(html: string): string {
@@ -50,28 +55,35 @@ function PriorityIcon({ priority }: { priority: string }) {
   const color = colors[priority as keyof typeof colors] || "#3b82f6";
 
   return (
-    <span title={`Priority: ${priority.charAt(0).toUpperCase() + priority.slice(1)}`}>
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 12 12"
-        fill="none"
-        className="shrink-0"
-      >
-        {[0, 1, 2].map((i) => (
-          <rect
-            key={i}
-            x={i * 4}
-            y={9 - (i + 1) * 3}
-            width="3"
-            height={(i + 1) * 3}
-            rx="0.5"
-            fill={i < level ? color : "currentColor"}
-            opacity={i < level ? 1 : 0.15}
-          />
-        ))}
-      </svg>
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            className="shrink-0"
+          >
+            {[0, 1, 2].map((i) => (
+              <rect
+                key={i}
+                x={i * 4}
+                y={9 - (i + 1) * 3}
+                width="3"
+                height={(i + 1) * 3}
+                rx="0.5"
+                fill={i < level ? color : "currentColor"}
+                opacity={i < level ? 1 : 0.15}
+              />
+            ))}
+          </svg>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        Priority: {priority.charAt(0).toUpperCase() + priority.slice(1)}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -112,19 +124,23 @@ function getPhaseLabels(phase: Phase): { play: string; terminal: string } {
 }
 
 export function TaskCard({ card, isDragging = false }: TaskCardProps) {
-  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, moveCard, deleteCard, quickFixTask, quickFixingCardId, lockedCardIds, unlockCard, settings } = useKanbanStore();
+  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, openIdeationTerminal, moveCard, deleteCard, quickFixTask, quickFixingCardId, evaluateIdea, evaluatingCardId, lockedCardIds, unlockCard, settings } = useKanbanStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showQuickFixConfirm, setShowQuickFixConfirm] = useState(false);
   const [showTerminalConfirm, setShowTerminalConfirm] = useState(false);
+  const [showIdeationConfirm, setShowIdeationConfirm] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
     id: card.id,
   });
 
   const isStarting = startingCardId === card.id;
   const isQuickFixing = quickFixingCardId === card.id;
+  const isEvaluating = evaluatingCardId === card.id;
   const isLocked = lockedCardIds.includes(card.id);
-  const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed" && card.status !== "test");
+  const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed" && card.status !== "test" && card.status !== "ideation");
   const canQuickFix = card.status === "bugs" && !!(card.description && (card.projectId || card.projectFolder));
+  const canEvaluate = card.status === "ideation" && !!(card.description && (card.projectId || card.projectFolder));
+  const hasAiOpinion = !!stripHtml(card.aiOpinion);
 
   // Detect current phase for dynamic tooltips
   const phase = detectPhase(card);
@@ -197,6 +213,38 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
     }
   };
 
+  const handleEvaluate = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isEvaluating || !canEvaluate) return;
+
+    const result = await evaluateIdea(card.id);
+    if (!result.success) {
+      console.error("Failed to evaluate idea:", result.error);
+    }
+  };
+
+  const handleOpenIdeationTerminalClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canEvaluate) return;
+
+    // Check if Ghostty - show confirmation dialog
+    const isGhostty = settings?.detectedTerminal === "ghostty" || settings?.terminalApp === "ghostty";
+    if (isGhostty) {
+      setShowIdeationConfirm(true);
+    } else {
+      handleOpenIdeationTerminal();
+    }
+  };
+
+  const handleOpenIdeationTerminal = async () => {
+    setShowIdeationConfirm(false);
+
+    const result = await openIdeationTerminal(card.id);
+    if (!result.success) {
+      console.error("Failed to open ideation terminal:", result.error);
+    }
+  };
+
   // Get project for this card
   const project = projects.find((p) => p.id === card.projectId);
   const displayId = getDisplayId(card, project);
@@ -222,13 +270,17 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
           >
             {/* Unlock button for locked cards */}
             {isLocked && (
-              <button
-                onClick={handleUnlock}
-                className="absolute top-2 right-2 p-1.5 rounded bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 transition-colors z-10"
-                title="Kilidi Ac"
-              >
-                <Unlock className="w-3.5 h-3.5" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleUnlock}
+                    className="absolute top-2 right-2 p-1.5 rounded bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 transition-colors z-10"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="left">Unlock</TooltipContent>
+              </Tooltip>
             )}
 
             {/* Title with displayId and priority */}
@@ -276,66 +328,125 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
 
               {/* Badges and Action Buttons */}
               <div className="flex items-center gap-1">
+                {canEvaluate && (
+                  <>
+                    {/* Interactive Ideation */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleOpenIdeationTerminalClick}
+                          className="p-1 rounded transition-colors bg-cyan-500/10 text-cyan-500/70 hover:bg-cyan-500/20 hover:text-cyan-500"
+                        >
+                          <MessagesSquare className="w-3.5 h-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Discuss Idea (Interactive)</TooltipContent>
+                    </Tooltip>
+                    {/* Autonomous Evaluate */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleEvaluate}
+                          disabled={isEvaluating}
+                          className={`p-1 rounded transition-colors ${
+                            isEvaluating
+                              ? "bg-purple-500/20 text-purple-500 cursor-wait"
+                              : "bg-purple-500/10 text-purple-500/70 hover:bg-purple-500/20 hover:text-purple-500"
+                          }`}
+                        >
+                          {isEvaluating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Brain className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {isEvaluating ? "Evaluating..." : hasAiOpinion ? "Re-evaluate Idea" : "Evaluate Idea"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
                 {canQuickFix && (
-                  <button
-                    onClick={handleQuickFixClick}
-                    disabled={isQuickFixing}
-                    className={`p-1 rounded transition-colors ${
-                      isQuickFixing
-                        ? "bg-yellow-500/20 text-yellow-500 cursor-wait"
-                        : "bg-yellow-500/10 text-yellow-500/70 hover:bg-yellow-500/20 hover:text-yellow-500"
-                    }`}
-                    title={isQuickFixing ? "Quick fixing..." : "Quick Fix (No Plan)"}
-                  >
-                    {isQuickFixing ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Zap className="w-3.5 h-3.5" />
-                    )}
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={handleQuickFixClick}
+                        disabled={isQuickFixing}
+                        className={`p-1 rounded transition-colors ${
+                          isQuickFixing
+                            ? "bg-yellow-500/20 text-yellow-500 cursor-wait"
+                            : "bg-yellow-500/10 text-yellow-500/70 hover:bg-yellow-500/20 hover:text-yellow-500"
+                        }`}
+                      >
+                        {isQuickFixing ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Zap className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      {isQuickFixing ? "Quick fixing..." : "Quick Fix (No Plan)"}
+                    </TooltipContent>
+                  </Tooltip>
                 )}
                 {canStart && (
                   <>
-                    <button
-                      onClick={handleOpenTerminalClick}
-                      className="p-1 rounded transition-colors bg-orange-500/10 text-orange-500/70 hover:bg-orange-500/20 hover:text-orange-500"
-                      title={phaseLabels.terminal}
-                    >
-                      <Terminal className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={handleStart}
-                      disabled={isStarting}
-                      className={`p-1 rounded transition-colors ${
-                        isStarting
-                          ? "bg-primary/20 text-primary cursor-wait"
-                          : "bg-primary/10 text-primary/70 hover:bg-primary/20 hover:text-primary"
-                      }`}
-                      title={isStarting ? "Running Claude..." : phaseLabels.play}
-                    >
-                      {isStarting ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Play className="w-3.5 h-3.5" />
-                      )}
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleOpenTerminalClick}
+                          className="p-1 rounded transition-colors bg-orange-500/10 text-orange-500/70 hover:bg-orange-500/20 hover:text-orange-500"
+                        >
+                          <Terminal className="w-3.5 h-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">{phaseLabels.terminal}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleStart}
+                          disabled={isStarting}
+                          className={`p-1 rounded transition-colors ${
+                            isStarting
+                              ? "bg-primary/20 text-primary cursor-wait"
+                              : "bg-primary/10 text-primary/70 hover:bg-primary/20 hover:text-primary"
+                          }`}
+                        >
+                          {isStarting ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {isStarting ? "Running Claude..." : phaseLabels.play}
+                      </TooltipContent>
+                    </Tooltip>
                   </>
                 )}
-                {stripHtml(card.solutionSummary) && (
-                  <span
-                    className="p-1 rounded bg-green-500/15 text-green-500"
-                    title="Has solution"
-                  >
-                    <Lightbulb className="w-3 h-3" />
-                  </span>
+                                {stripHtml(card.solutionSummary) && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="p-1 rounded bg-green-500/15 text-green-500">
+                        <Lightbulb className="w-3 h-3" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Has solution</TooltipContent>
+                  </Tooltip>
                 )}
                 {stripHtml(card.testScenarios) && (
-                  <span
-                    className="p-1 rounded bg-blue-500/15 text-blue-500"
-                    title="Has tests"
-                  >
-                    <FlaskConical className="w-3 h-3" />
-                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="p-1 rounded bg-blue-500/15 text-blue-500">
+                        <FlaskConical className="w-3 h-3" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Has tests</TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -409,19 +520,19 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Quick Fix Mode</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu kartı quick-fix modunda başlatmak istediğine emin misin?
+              Are you sure you want to start this card in quick-fix mode?
               <br /><br />
-              <strong>Dikkat:</strong> Plan yazılmayacak ve Claude tam dosya erişimi ile çalışacak.
-              Bug fix tamamlandıktan sonra kart otomatik olarak Human Test sütununa taşınacak.
+              <strong>Warning:</strong> No plan will be written and Claude will work with full file access.
+              After the bug fix is completed, the card will automatically be moved to the Human Test column.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleQuickFix}
               className="bg-yellow-500 hover:bg-yellow-600 text-black"
             >
-              Quick Fix Başlat
+              Start Quick Fix
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -442,6 +553,26 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               className="bg-orange-500 hover:bg-orange-600"
             >
               Open Terminal
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showIdeationConfirm} onOpenChange={setShowIdeationConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Interactive Ideation</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>Tip:</strong> Use <kbd className="px-1.5 py-0.5 bg-secondary border border-border rounded text-xs">⌘V</kbd> to paste in Ghostty terminal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleOpenIdeationTerminal}
+              className="bg-cyan-500 hover:bg-cyan-600"
+            >
+              Start Discussion
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

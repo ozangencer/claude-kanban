@@ -258,6 +258,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["id", "testScenarios"],
         },
       },
+      {
+        name: "save_opinion",
+        description: "Save AI opinion to a card after interactive ideation session. MUST include all required sections.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description: "The card ID (UUID)",
+            },
+            aiOpinion: {
+              type: "string",
+              description: "AI opinion in markdown. MUST include these sections: ## Summary Verdict (Strong Yes/Yes/Maybe/No/Strong No), ## Strengths (bullet points), ## Concerns (bullet points), ## Recommendations (bullet points), ## Priority ([PRIORITY: low/medium/high] - reasoning), ## Final Score ([X/10] - justification)",
+            },
+          },
+          required: ["id", "aiOpinion"],
+        },
+      },
     ],
   };
 });
@@ -519,6 +537,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         return {
           content: [{ type: "text", text: `Test scenarios saved to card ${id} and moved to Human Test` }],
+        };
+      }
+
+      case "save_opinion": {
+        const { id, aiOpinion } = args as { id: string; aiOpinion: string };
+
+        // Convert markdown to Tiptap-compatible HTML
+        const htmlContent = markdownToTiptapHtml(aiOpinion);
+
+        const result = db.prepare(`
+          UPDATE cards
+          SET ai_opinion = ?, updated_at = ?
+          WHERE id = ?
+        `).run(htmlContent, new Date().toISOString(), id);
+
+        if (result.changes === 0) {
+          return {
+            content: [{ type: "text", text: `Card not found: ${id}` }],
+            isError: true,
+          };
+        }
+
+        return {
+          content: [{ type: "text", text: `AI opinion saved to card ${id}` }],
         };
       }
 

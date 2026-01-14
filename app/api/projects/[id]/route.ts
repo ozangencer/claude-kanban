@@ -21,12 +21,19 @@ export async function PUT(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    // Handle documentPaths - convert array to JSON string for storage
+    let documentPaths = existing.documentPaths;
+    if (body.documentPaths !== undefined) {
+      documentPaths = body.documentPaths ? JSON.stringify(body.documentPaths) : null;
+    }
+
     const updatedProject = {
       name: body.name ?? existing.name,
       folderPath: body.folderPath ?? existing.folderPath,
       idPrefix: body.idPrefix ?? existing.idPrefix,
       color: body.color ?? existing.color,
       isPinned: body.isPinned ?? existing.isPinned,
+      documentPaths,
       updatedAt: new Date().toISOString(),
     };
 
@@ -35,9 +42,13 @@ export async function PUT(
       .where(eq(schema.projects.id, id))
       .run();
 
+    // Return with documentPaths as array (not JSON string)
     return NextResponse.json({
       ...existing,
       ...updatedProject,
+      documentPaths: updatedProject.documentPaths
+        ? JSON.parse(updatedProject.documentPaths)
+        : null,
     });
   } catch (error) {
     console.error("Failed to update project:", error);

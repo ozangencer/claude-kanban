@@ -15,6 +15,7 @@ export interface Card {
   description: string;
   solutionSummary: string;
   testScenarios: string;
+  aiOpinion: string;
   status: Status;
   complexity: Complexity;
   priority: Priority;
@@ -23,6 +24,7 @@ export interface Card {
   taskNumber: number | null;
   createdAt: string;
   updatedAt: string;
+  completedAt: string | null;
 }
 
 export interface Project {
@@ -33,6 +35,7 @@ export interface Project {
   nextTaskNumber: number;
   color: string;
   isPinned: boolean;
+  documentPaths: string[] | null; // Custom document paths, null = smart discovery
   createdAt: string;
   updatedAt: string;
 }
@@ -97,6 +100,17 @@ export const TERMINAL_OPTIONS: { value: TerminalApp; label: string }[] = [
   { value: "iterm2", label: "iTerm2" },
   { value: "ghostty", label: "Ghostty" },
   { value: "terminal", label: "Terminal.app" },
+];
+
+// Completed column retention filter
+export type CompletedRetention = 'all' | 'week' | '2weeks' | 'month' | '3months';
+
+export const RETENTION_OPTIONS: { value: CompletedRetention; label: string }[] = [
+  { value: 'all', label: 'All time' },
+  { value: 'week', label: 'Past week' },
+  { value: '2weeks', label: 'Past 2 weeks' },
+  { value: 'month', label: 'Past month' },
+  { value: '3months', label: 'Past 3 months' },
 ];
 
 // Complexity & Priority options

@@ -286,6 +286,22 @@ button:disabled {
   @apply bg-emerald-500/30 underline;
 }
 
+.document-mention {
+  @apply bg-cyan-500/20 text-cyan-400 cursor-pointer transition-colors;
+}
+
+.document-mention:hover {
+  @apply bg-cyan-500/30 underline;
+}
+
+.document-mention.claude-md {
+  @apply bg-orange-500/20 text-orange-400;
+}
+
+.document-mention.claude-md:hover {
+  @apply bg-orange-500/30;
+}
+
 /* Card preview tooltip - needs !important to override global tippy styles */
 .tippy-box[data-theme~='card-preview'] {
   background: hsl(var(--popover)) !important;
@@ -304,6 +320,32 @@ button:disabled {
 
 .card-preview-tooltip {
   color: hsl(var(--foreground));
+}
+
+.card-preview-tooltip .tooltip-title {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.card-preview-tooltip .tooltip-id {
+  color: #60a5fa;
+  margin-right: 8px;
+}
+
+.card-preview-tooltip .tooltip-meta {
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  margin-top: 6px;
+  text-transform: capitalize;
+}
+
+.card-preview-tooltip .tooltip-description {
+  font-size: 13px;
+  color: hsl(var(--foreground));
+  opacity: 0.75;
+  margin-top: 10px;
+  line-height: 1.5;
 }
 
 /* Tippy tooltip styles */

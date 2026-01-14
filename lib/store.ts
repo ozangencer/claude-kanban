@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Card, Status, Project, DocumentFile, AppSettings } from "./types";
+import { Card, Status, Project, DocumentFile, AppSettings, CompletedRetention } from "./types";
 
 interface KanbanStore {
   // Cards state
@@ -27,6 +27,9 @@ interface KanbanStore {
   // Column collapse state
   collapsedColumns: Status[];
 
+  // Completed column retention filter
+  completedRetention: CompletedRetention;
+
   // Skills & MCPs state
   skills: string[];
   mcps: string[];
@@ -34,6 +37,7 @@ interface KanbanStore {
   // Claude integration state
   startingCardId: string | null;
   quickFixingCardId: string | null;
+  evaluatingCardId: string | null;
   lockedCardIds: string[];
 
   // Settings state
@@ -44,10 +48,10 @@ interface KanbanStore {
   fetchCards: () => Promise<void>;
   setCards: (cards: Card[]) => void;
   addCard: (
-    card: Omit<Card, "id" | "createdAt" | "updatedAt" | "taskNumber">
+    card: Omit<Card, "id" | "createdAt" | "updatedAt" | "taskNumber" | "completedAt">
   ) => Promise<void>;
   addCardAndOpen: (
-    card: Omit<Card, "id" | "createdAt" | "updatedAt" | "taskNumber">
+    card: Omit<Card, "id" | "createdAt" | "updatedAt" | "taskNumber" | "completedAt">
   ) => Promise<void>;
   updateCard: (id: string, updates: Partial<Card>) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
@@ -80,6 +84,9 @@ interface KanbanStore {
   // Column collapse actions
   toggleColumnCollapse: (columnId: Status) => void;
 
+  // Completed retention actions
+  setCompletedRetention: (retention: CompletedRetention) => void;
+
   // Skills & MCPs actions
   fetchSkills: () => Promise<void>;
   fetchMcps: () => Promise<void>;
@@ -87,7 +94,9 @@ interface KanbanStore {
   // Claude integration actions
   startTask: (cardId: string) => Promise<{ success: boolean; error?: string }>;
   openTerminal: (cardId: string) => Promise<{ success: boolean; error?: string }>;
+  openIdeationTerminal: (cardId: string) => Promise<{ success: boolean; error?: string }>;
   quickFixTask: (cardId: string) => Promise<{ success: boolean; error?: string }>;
+  evaluateIdea: (cardId: string) => Promise<{ success: boolean; error?: string }>;
   lockCard: (cardId: string) => void;
   unlockCard: (cardId: string) => void;
 
@@ -123,6 +132,9 @@ export const useKanbanStore = create<KanbanStore>()(
   // Column collapse initial state
   collapsedColumns: [],
 
+  // Completed retention initial state
+  completedRetention: 'all',
+
   // Skills & MCPs initial state
   skills: [],
   mcps: [],
@@ -130,6 +142,7 @@ export const useKanbanStore = create<KanbanStore>()(
   // Claude integration initial state
   startingCardId: null,
   quickFixingCardId: null,
+  evaluatingCardId: null,
   lockedCardIds: [],
 
   // Settings initial state
@@ -413,6 +426,9 @@ export const useKanbanStore = create<KanbanStore>()(
         : [...state.collapsedColumns, columnId],
     })),
 
+  // Completed retention actions
+  setCompletedRetention: (retention) => set({ completedRetention: retention }),
+
   // Skills & MCPs actions
   fetchSkills: async () => {
     try {
@@ -551,6 +567,44 @@ export const useKanbanStore = create<KanbanStore>()(
     }
   },
 
+  openIdeationTerminal: async (cardId) => {
+    // Lock the card immediately (manual unlock required after ideation)
+    set((state) => ({
+      lockedCardIds: state.lockedCardIds.includes(cardId)
+        ? state.lockedCardIds
+        : [...state.lockedCardIds, cardId],
+    }));
+
+    try {
+      const response = await fetch(`/api/cards/${cardId}/ideate`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Unlock on error
+        set((state) => ({
+          lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+        }));
+        return { success: false, error: data.error || "Failed to open ideation terminal" };
+      }
+
+      // Card stays locked - manual unlock required after ideation session
+      return { success: true, message: data.message };
+    } catch (error) {
+      console.error("Failed to open ideation terminal:", error);
+      // Unlock on error
+      set((state) => ({
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+      }));
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+
   quickFixTask: async (cardId) => {
     set((state) => ({
       quickFixingCardId: cardId,
@@ -596,6 +650,58 @@ export const useKanbanStore = create<KanbanStore>()(
       console.error("Failed to quick fix:", error);
       set((state) => ({
         quickFixingCardId: null,
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+      }));
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+
+  evaluateIdea: async (cardId) => {
+    set((state) => ({
+      evaluatingCardId: cardId,
+      lockedCardIds: state.lockedCardIds.includes(cardId)
+        ? state.lockedCardIds
+        : [...state.lockedCardIds, cardId],
+    }));
+
+    try {
+      const response = await fetch(`/api/cards/${cardId}/evaluate`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        set((state) => ({
+          evaluatingCardId: null,
+          lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+        }));
+        return { success: false, error: data.error || "Failed to evaluate idea" };
+      }
+
+      // Update card with AI opinion
+      set((state) => ({
+        cards: state.cards.map((card) => {
+          if (card.id !== cardId) return card;
+
+          return {
+            ...card,
+            aiOpinion: data.aiOpinion,
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+        evaluatingCardId: null,
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+      }));
+
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to evaluate idea:", error);
+      set((state) => ({
+        evaluatingCardId: null,
         lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
       }));
       return {
@@ -659,6 +765,7 @@ export const useKanbanStore = create<KanbanStore>()(
       partialize: (state) => ({
         collapsedColumns: state.collapsedColumns,
         isSidebarCollapsed: state.isSidebarCollapsed,
+        completedRetention: state.completedRetention,
       }),
     }
   )

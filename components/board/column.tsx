@@ -1,10 +1,17 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { Card as CardType, Status, STATUS_COLORS } from "@/lib/types";
+import { Card as CardType, Status, STATUS_COLORS, RETENTION_OPTIONS, CompletedRetention } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
 import { TaskCard } from "./card";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ColumnProps {
   id: Status;
@@ -13,7 +20,7 @@ interface ColumnProps {
 }
 
 export function Column({ id, title, cards }: ColumnProps) {
-  const { addCardAndOpen, activeProjectId, projects, collapsedColumns, toggleColumnCollapse } = useKanbanStore();
+  const { addCardAndOpen, activeProjectId, projects, collapsedColumns, toggleColumnCollapse, completedRetention, setCompletedRetention } = useKanbanStore();
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const isCollapsed = collapsedColumns.includes(id);
@@ -25,6 +32,7 @@ export function Column({ id, title, cards }: ColumnProps) {
       description: "",
       solutionSummary: "",
       testScenarios: "",
+      aiOpinion: "",
       status: id,
       complexity: "medium",
       priority: "medium",
@@ -75,23 +83,43 @@ export function Column({ id, title, cards }: ColumnProps) {
     >
       {/* Column Header */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <button
             onClick={() => toggleColumnCollapse(id)}
-            className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted"
+            className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded hover:bg-muted flex-shrink-0"
             title="Collapse column"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className={`w-2 h-2 rounded-full ${STATUS_COLORS[id]}`} />
-          <h2 className="text-sm font-medium text-foreground">{title}</h2>
-          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLORS[id]}`} />
+          <h2 className="text-sm font-medium text-foreground truncate">{title}</h2>
+          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
             {cards.length}
           </span>
+          {id === "completed" && (
+            <Select
+              value={completedRetention}
+              onValueChange={(value) => setCompletedRetention(value as CompletedRetention)}
+            >
+              <SelectTrigger
+                className="h-6 w-auto min-w-0 text-xs bg-muted border-none px-2 py-0.5 gap-1 flex-shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RETENTION_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value} className="text-xs">
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <button
           onClick={handleAddCard}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted"
+          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted flex-shrink-0 ml-1"
           title="Add card"
         >
           <svg

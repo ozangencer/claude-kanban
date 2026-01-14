@@ -37,7 +37,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { X, ChevronRight, ArrowLeft } from "lucide-react";
+import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2 } from "lucide-react";
 
 // Strip HTML tags for preview text
 function stripHtml(html: string): string {
@@ -63,14 +63,17 @@ export function CardModal() {
   const [description, setDescription] = useState("");
   const [solutionSummary, setSolutionSummary] = useState("");
   const [testScenarios, setTestScenarios] = useState("");
+  const [aiOpinion, setAiOpinion] = useState("");
   const [status, setStatus] = useState<Status>("ideation");
   const [complexity, setComplexity] = useState<Complexity>("medium");
   const [priority, setPriority] = useState<Priority>("medium");
   const [projectId, setProjectId] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Collapsible states
   const [descriptionOpen, setDescriptionOpen] = useState(true);
+  const [aiOpinionOpen, setAiOpinionOpen] = useState(false);
   const [solutionOpen, setSolutionOpen] = useState(false);
   const [testsOpen, setTestsOpen] = useState(false);
 
@@ -86,6 +89,7 @@ export function CardModal() {
     description !== selectedCard.description ||
     solutionSummary !== selectedCard.solutionSummary ||
     testScenarios !== selectedCard.testScenarios ||
+    aiOpinion !== selectedCard.aiOpinion ||
     status !== selectedCard.status ||
     complexity !== (selectedCard.complexity || "medium") ||
     priority !== (selectedCard.priority || "medium") ||
@@ -113,6 +117,7 @@ export function CardModal() {
       setDescription(selectedCard.description);
       setSolutionSummary(selectedCard.solutionSummary);
       setTestScenarios(selectedCard.testScenarios);
+      setAiOpinion(selectedCard.aiOpinion);
       setStatus(selectedCard.status);
       setComplexity(selectedCard.complexity || "medium");
       setPriority(selectedCard.priority || "medium");
@@ -165,6 +170,7 @@ export function CardModal() {
         description,
         solutionSummary,
         testScenarios,
+        aiOpinion,
         status,
         complexity,
         priority,
@@ -212,9 +218,9 @@ export function CardModal() {
       onClick={handleBackdropClick}
     >
       <div
-        className={`bg-surface border-l border-border w-full max-w-[700px] h-full flex flex-col shadow-2xl transition-transform duration-200 ease-out ${
-          isVisible ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`bg-surface border-l border-border w-full h-full flex flex-col shadow-2xl transition-all duration-200 ease-out ${
+          isExpanded ? "max-w-[1200px]" : "max-w-[700px]"
+        } ${isVisible ? "translate-x-0" : "translate-x-full"}`}
       >
         {/* Header */}
         <div className="flex items-start gap-3 px-6 py-4 border-b border-border shrink-0">
@@ -254,6 +260,15 @@ export function CardModal() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-muted-foreground hover:text-foreground"
+              title={isExpanded ? "Collapse panel" : "Expand panel"}
+            >
+              {isExpanded ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -432,6 +447,7 @@ export function CardModal() {
           <Collapsible open={descriptionOpen} onOpenChange={setDescriptionOpen}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ChevronIcon isOpen={descriptionOpen} />
+              <FileText className="h-4 w-4 text-blue-500" />
               <span className="font-medium">Detail</span>
               {!descriptionOpen && description && (
                 <span className="text-xs text-muted-foreground/60 truncate ml-2">
@@ -450,10 +466,34 @@ export function CardModal() {
             </CollapsibleContent>
           </Collapsible>
 
+          {/* AI's Opinion */}
+          <Collapsible open={aiOpinionOpen} onOpenChange={setAiOpinionOpen}>
+            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronIcon isOpen={aiOpinionOpen} />
+              <Brain className="h-4 w-4 text-purple-500" />
+              <span className="font-medium">AI&apos;s Opinion</span>
+              {!aiOpinionOpen && aiOpinion && (
+                <span className="text-xs text-muted-foreground/60 truncate ml-2">
+                  {stripHtml(aiOpinion).slice(0, 50)}...
+                </span>
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <MarkdownEditor
+                value={aiOpinion}
+                onChange={setAiOpinion}
+                placeholder="AI's evaluation of this idea..."
+                minHeight="150px"
+                onCardClick={handleCardClick}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+
           {/* Solution Summary */}
           <Collapsible open={solutionOpen} onOpenChange={setSolutionOpen}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ChevronIcon isOpen={solutionOpen} />
+              <Lightbulb className="h-4 w-4 text-amber-500" />
               <span className="font-medium">Solution Summary</span>
               {!solutionOpen && solutionSummary && (
                 <span className="text-xs text-muted-foreground/60 truncate ml-2">
@@ -476,6 +516,7 @@ export function CardModal() {
           <Collapsible open={testsOpen} onOpenChange={setTestsOpen}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               <ChevronIcon isOpen={testsOpen} />
+              <TestTube2 className="h-4 w-4 text-green-500" />
               <span className="font-medium">Test Scenarios</span>
               {!testsOpen && testScenarios && (
                 <span className="text-xs text-muted-foreground/60 truncate ml-2">

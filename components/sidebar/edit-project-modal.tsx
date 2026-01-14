@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Folder, Loader2 } from "lucide-react";
+import { Folder, Loader2, FileText } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
   PopoverContent,
@@ -57,6 +58,9 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
   const [folderPath, setFolderPath] = useState(project.folderPath);
   const [idPrefix, setIdPrefix] = useState(project.idPrefix);
   const [color, setColor] = useState(project.color);
+  const [documentPathsText, setDocumentPathsText] = useState(
+    project.documentPaths?.join("\n") || ""
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
   const [hookInstalled, setHookInstalled] = useState<boolean | null>(null);
@@ -115,6 +119,12 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
   const handleSubmit = async () => {
     if (!name.trim() || !folderPath.trim()) return;
 
+    // Parse document paths - filter empty lines
+    const documentPaths = documentPathsText
+      .split("\n")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
     setIsSubmitting(true);
     try {
       await updateProject(project.id, {
@@ -122,6 +132,7 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
         folderPath: folderPath.trim(),
         idPrefix: idPrefix.trim() || project.idPrefix,
         color,
+        documentPaths: documentPaths.length > 0 ? documentPaths : null,
       });
       onClose();
     } catch (error) {
@@ -260,6 +271,28 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
             Task IDs: {idPrefix || "PRJ"}-1, {idPrefix || "PRJ"}-2...
           </p>
 
+          {/* Document Paths */}
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <label htmlFor="edit-documentPaths" className="text-sm font-medium">
+                Document Paths
+              </label>
+              <span className="text-xs text-muted-foreground">(optional)</span>
+            </div>
+            <Textarea
+              id="edit-documentPaths"
+              value={documentPathsText}
+              onChange={(e) => setDocumentPathsText(e.target.value)}
+              placeholder="docs/&#10;specs/&#10;README.md&#10;ARCHITECTURE.md"
+              className="min-h-[80px] font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              One path per line. Leave empty for smart discovery (CLAUDE.md, README.md,
+              docs/, notes/, specs/, plans/, .github/, etc.)
+            </p>
+          </div>
+
           {/* Divider */}
           <div className="border-t border-border" />
 
@@ -268,7 +301,7 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
             <div className="space-y-0.5">
               <label className="text-sm font-medium">Kanban Hook</label>
               <p className="text-xs text-muted-foreground">
-                ExitPlanMode sonrası plan kaydetme hatırlatıcısı
+                Reminds you to save plan after ExitPlanMode
               </p>
             </div>
             <div className="flex items-center gap-2">
