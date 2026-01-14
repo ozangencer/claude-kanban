@@ -64,7 +64,7 @@ export const CardMentionPopup = forwardRef<CardMentionPopupRef, CardMentionPopup
           downHandler();
           return true;
         }
-        if (event.key === "Enter") {
+        if (event.key === "Enter" || event.key === "Tab") {
           enterHandler();
           return true;
         }
