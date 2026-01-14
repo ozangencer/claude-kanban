@@ -57,7 +57,12 @@ ${mcpInfo}
 
 Analyze this task and help me create an implementation plan. Ask me questions if anything is unclear.
 
-When the plan is finalized, use mcp__kanban__save_plan with card ID ${card.id} to save it.`;
+## CRITICAL: When Plan is Finalized
+You MUST save the plan before finishing:
+\`\`\`
+mcp__kanban__save_plan({ id: "${card.id}", solutionSummary: "..." })
+\`\`\`
+This moves the card to In Progress. Do NOT end the session without saving the plan.`;
 
     case "implementation":
       return `You are a senior developer. I need help implementing this plan.
@@ -71,7 +76,12 @@ ${mcpInfo}
 
 Let's implement this together. Start with the first step and guide me through.
 
-After implementation, use mcp__kanban__save_tests with card ID ${card.id} to save test scenarios.`;
+## CRITICAL: When Implementation is Complete
+You MUST save test scenarios before finishing:
+\`\`\`
+mcp__kanban__save_tests({ id: "${card.id}", testScenarios: "..." })
+\`\`\`
+This moves the card to Human Test. Do NOT end the session without saving tests.`;
 
     case "retest":
       return `Let's verify these test scenarios together:

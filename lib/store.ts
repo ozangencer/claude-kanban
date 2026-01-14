@@ -34,6 +34,7 @@ interface KanbanStore {
   // Claude integration state
   startingCardId: string | null;
   quickFixingCardId: string | null;
+  lockedCardIds: string[];
 
   // Settings state
   settings: AppSettings | null;
@@ -87,6 +88,8 @@ interface KanbanStore {
   startTask: (cardId: string) => Promise<{ success: boolean; error?: string }>;
   openTerminal: (cardId: string) => Promise<{ success: boolean; error?: string }>;
   quickFixTask: (cardId: string) => Promise<{ success: boolean; error?: string }>;
+  lockCard: (cardId: string) => void;
+  unlockCard: (cardId: string) => void;
 
   // Settings actions
   fetchSettings: () => Promise<void>;
@@ -127,6 +130,7 @@ export const useKanbanStore = create<KanbanStore>()(
   // Claude integration initial state
   startingCardId: null,
   quickFixingCardId: null,
+  lockedCardIds: [],
 
   // Settings initial state
   settings: null,
@@ -432,7 +436,12 @@ export const useKanbanStore = create<KanbanStore>()(
 
   // Claude integration actions
   startTask: async (cardId) => {
-    set({ startingCardId: cardId });
+    set((state) => ({
+      startingCardId: cardId,
+      lockedCardIds: state.lockedCardIds.includes(cardId)
+        ? state.lockedCardIds
+        : [...state.lockedCardIds, cardId],
+    }));
 
     try {
       const response = await fetch(`/api/cards/${cardId}/start`, {
@@ -442,7 +451,10 @@ export const useKanbanStore = create<KanbanStore>()(
       const data = await response.json();
 
       if (!response.ok) {
-        set({ startingCardId: null });
+        set((state) => ({
+          startingCardId: null,
+          lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+        }));
         return { success: false, error: data.error || "Failed to start task" };
       }
 
@@ -469,12 +481,16 @@ export const useKanbanStore = create<KanbanStore>()(
           return { ...card, ...updates };
         }),
         startingCardId: null,
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
       }));
 
       return { success: true, phase: data.phase, newStatus: data.newStatus };
     } catch (error) {
       console.error("Failed to start task:", error);
-      set({ startingCardId: null });
+      set((state) => ({
+        startingCardId: null,
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+      }));
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -483,6 +499,13 @@ export const useKanbanStore = create<KanbanStore>()(
   },
 
   openTerminal: async (cardId) => {
+    // Lock the card immediately (manual unlock required)
+    set((state) => ({
+      lockedCardIds: state.lockedCardIds.includes(cardId)
+        ? state.lockedCardIds
+        : [...state.lockedCardIds, cardId],
+    }));
+
     try {
       const response = await fetch(`/api/cards/${cardId}/open-terminal`, {
         method: "POST",
@@ -491,12 +514,17 @@ export const useKanbanStore = create<KanbanStore>()(
       const data = await response.json();
 
       if (!response.ok) {
+        // Unlock on error
+        set((state) => ({
+          lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+        }));
         return { success: false, error: data.error || "Failed to open terminal" };
       }
 
       // Update card status in UI to match database
       // data.phase: "planning" | "implementation" | "retest"
       // data.newStatus: new status after operation
+      // Keep card locked - manual unlock required
       set((state) => ({
         cards: state.cards.map((card) =>
           card.id === cardId
@@ -512,6 +540,10 @@ export const useKanbanStore = create<KanbanStore>()(
       return { success: true, phase: data.phase, newStatus: data.newStatus, message: data.message };
     } catch (error) {
       console.error("Failed to open terminal:", error);
+      // Unlock on error
+      set((state) => ({
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+      }));
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
@@ -520,7 +552,12 @@ export const useKanbanStore = create<KanbanStore>()(
   },
 
   quickFixTask: async (cardId) => {
-    set({ quickFixingCardId: cardId });
+    set((state) => ({
+      quickFixingCardId: cardId,
+      lockedCardIds: state.lockedCardIds.includes(cardId)
+        ? state.lockedCardIds
+        : [...state.lockedCardIds, cardId],
+    }));
 
     try {
       const response = await fetch(`/api/cards/${cardId}/quick-fix`, {
@@ -530,7 +567,10 @@ export const useKanbanStore = create<KanbanStore>()(
       const data = await response.json();
 
       if (!response.ok) {
-        set({ quickFixingCardId: null });
+        set((state) => ({
+          quickFixingCardId: null,
+          lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+        }));
         return { success: false, error: data.error || "Failed to quick fix" };
       }
 
@@ -548,17 +588,35 @@ export const useKanbanStore = create<KanbanStore>()(
           };
         }),
         quickFixingCardId: null,
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
       }));
 
       return { success: true };
     } catch (error) {
       console.error("Failed to quick fix:", error);
-      set({ quickFixingCardId: null });
+      set((state) => ({
+        quickFixingCardId: null,
+        lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+      }));
       return {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  },
+
+  lockCard: (cardId) => {
+    set((state) => ({
+      lockedCardIds: state.lockedCardIds.includes(cardId)
+        ? state.lockedCardIds
+        : [...state.lockedCardIds, cardId],
+    }));
+  },
+
+  unlockCard: (cardId) => {
+    set((state) => ({
+      lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
+    }));
   },
 
   // Settings actions

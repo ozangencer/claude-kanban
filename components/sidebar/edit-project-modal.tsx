@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useKanbanStore } from "@/lib/store";
 import { Project } from "@/lib/types";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Folder } from "lucide-react";
+import { Folder, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -58,6 +59,40 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
   const [color, setColor] = useState(project.color);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
+  const [hookInstalled, setHookInstalled] = useState<boolean | null>(null);
+  const [isTogglingHook, setIsTogglingHook] = useState(false);
+
+  // Check hook status on mount
+  useEffect(() => {
+    const checkHookStatus = async () => {
+      try {
+        const response = await fetch(`/api/projects/${project.id}/hook`);
+        const data = await response.json();
+        setHookInstalled(data.installed ?? false);
+      } catch (error) {
+        console.error("Failed to check hook status:", error);
+        setHookInstalled(false);
+      }
+    };
+    checkHookStatus();
+  }, [project.id]);
+
+  const handleToggleHook = async (enabled: boolean) => {
+    setIsTogglingHook(true);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/hook`, {
+        method: enabled ? "POST" : "DELETE",
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setHookInstalled(data.installed);
+      }
+    } catch (error) {
+      console.error("Failed to toggle hook:", error);
+    } finally {
+      setIsTogglingHook(false);
+    }
+  };
 
   const handleFolderPick = async () => {
     setIsPickingFolder(true);
@@ -224,6 +259,29 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
           <p className="text-xs text-muted-foreground -mt-2">
             Task IDs: {idPrefix || "PRJ"}-1, {idPrefix || "PRJ"}-2...
           </p>
+
+          {/* Divider */}
+          <div className="border-t border-border" />
+
+          {/* Claude Code Hook */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <label className="text-sm font-medium">Kanban Hook</label>
+              <p className="text-xs text-muted-foreground">
+                ExitPlanMode sonrası plan kaydetme hatırlatıcısı
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {isTogglingHook && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              <Switch
+                checked={hookInstalled ?? false}
+                onCheckedChange={handleToggleHook}
+                disabled={isTogglingHook || hookInstalled === null}
+              />
+            </div>
+          </div>
         </div>
 
         <DialogFooter className="flex-row justify-between sm:justify-between">

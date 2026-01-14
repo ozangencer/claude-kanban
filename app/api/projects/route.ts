@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { db, schema } from "@/lib/db";
 import { Project } from "@/lib/types";
+import { installKanbanHook } from "@/lib/hooks";
 
 export async function GET() {
   try {
@@ -60,6 +61,14 @@ export async function POST(request: NextRequest) {
     };
 
     db.insert(schema.projects).values(newProject).run();
+
+    // Install kanban hook to project folder
+    if (body.folderPath) {
+      const hookResult = installKanbanHook(body.folderPath);
+      if (!hookResult.success) {
+        console.warn("Failed to install kanban hook:", hookResult.error);
+      }
+    }
 
     return NextResponse.json(newProject, { status: 201 });
   } catch (error) {

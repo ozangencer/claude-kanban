@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
+import { removeKanbanHook } from "@/lib/hooks";
 
 export async function PUT(
   request: NextRequest,
@@ -62,6 +63,14 @@ export async function DELETE(
 
     if (!existing) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    // Remove kanban hook from project folder
+    if (existing.folderPath) {
+      const hookResult = removeKanbanHook(existing.folderPath);
+      if (!hookResult.success) {
+        console.warn("Failed to remove kanban hook:", hookResult.error);
+      }
     }
 
     // Unlink cards from project (don't delete them)

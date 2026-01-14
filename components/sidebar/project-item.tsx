@@ -21,9 +21,17 @@ export function ProjectItem({ project, isActive, onEdit }: ProjectItemProps) {
   const { setActiveProject, toggleProjectPin } = useKanbanStore();
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => setActiveProject(project.id)}
-      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 group ${
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setActiveProject(project.id);
+        }
+      }}
+      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 group cursor-pointer ${
         isActive
           ? "bg-primary/10 text-primary"
           : "text-foreground hover:bg-muted"
@@ -94,6 +102,6 @@ export function ProjectItem({ project, isActive, onEdit }: ProjectItemProps) {
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-    </button>
+    </div>
   );
 }

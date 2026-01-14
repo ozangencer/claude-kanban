@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Folder } from "lucide-react";
+import { Folder, RefreshCw, Check, AlertCircle } from "lucide-react";
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -34,6 +34,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPickingSkillsFolder, setIsPickingSkillsFolder] = useState(false);
   const [isPickingMcpFile, setIsPickingMcpFile] = useState(false);
+  const [isReinstallingHooks, setIsReinstallingHooks] = useState(false);
+  const [hookResult, setHookResult] = useState<{ success: number; failed: number } | null>(null);
 
   useEffect(() => {
     if (!settings) {
@@ -90,6 +92,27 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       console.error("Failed to save settings:", error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleReinstallHooks = async () => {
+    setIsReinstallingHooks(true);
+    setHookResult(null);
+    try {
+      const response = await fetch("/api/projects/reinstall-hooks", {
+        method: "POST",
+      });
+      const data = await response.json();
+      const results = data.results || [];
+      setHookResult({
+        success: results.filter((r: { success: boolean }) => r.success).length,
+        failed: results.filter((r: { success: boolean }) => !r.success).length,
+      });
+    } catch (error) {
+      console.error("Failed to reinstall hooks:", error);
+      setHookResult({ success: 0, failed: -1 });
+    } finally {
+      setIsReinstallingHooks(false);
     }
   };
 
@@ -184,6 +207,52 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 ? "Ghostty will open and command will be copied to clipboard"
                 : "Terminal to use for opening Claude Code sessions"}
             </p>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border" />
+
+          {/* Claude Code Hooks */}
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Claude Code Hooks</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              ExitPlanMode sonrası kanban kartına plan kaydetme hatırlatıcısı kurar
+            </p>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleReinstallHooks}
+                disabled={isReinstallingHooks}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isReinstallingHooks ? "animate-spin" : ""}`} />
+                {isReinstallingHooks ? "Kuruluyor..." : "Hook'ları Kur"}
+              </Button>
+              {hookResult && (
+                <div className="flex items-center gap-2 text-sm">
+                  {hookResult.failed === -1 ? (
+                    <span className="text-destructive flex items-center gap-1">
+                      <AlertCircle className="h-4 w-4" />
+                      Hata oluştu
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-green-500 flex items-center gap-1">
+                        <Check className="h-4 w-4" />
+                        {hookResult.success} başarılı
+                      </span>
+                      {hookResult.failed > 0 && (
+                        <span className="text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-4 w-4" />
+                          {hookResult.failed} başarısız
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
