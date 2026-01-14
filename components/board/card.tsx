@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, COLUMNS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -112,15 +112,17 @@ function getPhaseLabels(phase: Phase): { play: string; terminal: string } {
 }
 
 export function TaskCard({ card, isDragging = false }: TaskCardProps) {
-  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, moveCard, deleteCard, quickFixTask, quickFixingCardId } = useKanbanStore();
+  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, moveCard, deleteCard, quickFixTask, quickFixingCardId, lockedCardIds, unlockCard, settings } = useKanbanStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showQuickFixConfirm, setShowQuickFixConfirm] = useState(false);
+  const [showTerminalConfirm, setShowTerminalConfirm] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
     id: card.id,
   });
 
   const isStarting = startingCardId === card.id;
   const isQuickFixing = quickFixingCardId === card.id;
+  const isLocked = lockedCardIds.includes(card.id);
   const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed" && card.status !== "test");
   const canQuickFix = card.status === "bugs" && !!(card.description && (card.projectId || card.projectFolder));
 
@@ -136,10 +138,15 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
   };
 
   const handleClick = () => {
-    if (!isDragging && !isBeingDragged) {
+    if (!isDragging && !isBeingDragged && !isLocked) {
       selectCard(card);
       openModal();
     }
+  };
+
+  const handleUnlock = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    unlockCard(card.id);
   };
 
   const handleStart = async (e: React.MouseEvent) => {
@@ -152,9 +159,22 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
     }
   };
 
-  const handleOpenTerminal = async (e: React.MouseEvent) => {
+  const handleOpenTerminalClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!canStart) return;
+
+    // Check if Ghostty - show confirmation dialog
+    const isGhostty = settings?.detectedTerminal === "ghostty" || settings?.terminalApp === "ghostty";
+    if (isGhostty) {
+      setShowTerminalConfirm(true);
+    } else {
+      // Not Ghostty, open terminal directly
+      handleOpenTerminal();
+    }
+  };
+
+  const handleOpenTerminal = async () => {
+    setShowTerminalConfirm(false);
 
     const result = await openTerminal(card.id);
     if (!result.success) {
@@ -189,13 +209,28 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
           <div
             ref={setNodeRef}
             style={style}
-            {...listeners}
-            {...attributes}
+            {...(isLocked ? {} : listeners)}
+            {...(isLocked ? {} : attributes)}
             onClick={handleClick}
-            className={`bg-card border border-border rounded-md p-3 hover:border-primary/50 transition-colors group touch-none select-none ${
+            className={`bg-card border border-border rounded-md p-3 transition-colors group touch-none select-none relative ${
               isDragging ? "shadow-2xl ring-2 ring-primary/50" : ""
-            } ${isBeingDragged ? "z-50" : ""}`}
+            } ${isBeingDragged ? "z-50" : ""} ${
+              isLocked
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:border-primary/50"
+            }`}
           >
+            {/* Unlock button for locked cards */}
+            {isLocked && (
+              <button
+                onClick={handleUnlock}
+                className="absolute top-2 right-2 p-1.5 rounded bg-orange-500/20 text-orange-500 hover:bg-orange-500/30 transition-colors z-10"
+                title="Kilidi Ac"
+              >
+                <Unlock className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {/* Title with displayId and priority */}
             <div className="flex items-start gap-2 mb-1">
               {displayId && (
@@ -209,10 +244,10 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                   {displayId}
                 </span>
               )}
-              <h3 className="text-sm font-medium text-card-foreground group-hover:text-primary transition-colors line-clamp-2 flex-1">
+              <h3 className={`text-sm font-medium text-card-foreground transition-colors line-clamp-2 flex-1 ${isLocked ? "" : "group-hover:text-primary"}`}>
                 {card.title}
               </h3>
-              <PriorityIcon priority={card.priority} />
+              {!isLocked && <PriorityIcon priority={card.priority} />}
             </div>
 
             {card.description && (
@@ -262,7 +297,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                 {canStart && (
                   <>
                     <button
-                      onClick={handleOpenTerminal}
+                      onClick={handleOpenTerminalClick}
                       className="p-1 rounded transition-colors bg-orange-500/10 text-orange-500/70 hover:bg-orange-500/20 hover:text-orange-500"
                       title={phaseLabels.terminal}
                     >
@@ -307,12 +342,21 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-48">
-          <ContextMenuItem onClick={handleClick}>
+          {isLocked && (
+            <>
+              <ContextMenuItem onClick={handleUnlock} className="text-orange-500 focus:text-orange-500">
+                <Unlock className="w-4 h-4 mr-2" />
+                Kilidi Aç
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
+          <ContextMenuItem onClick={handleClick} disabled={isLocked}>
             <ExternalLink className="w-4 h-4 mr-2" />
             Detay Aç
           </ContextMenuItem>
           <ContextMenuSub>
-            <ContextMenuSubTrigger>
+            <ContextMenuSubTrigger disabled={isLocked}>
               <ArrowRightLeft className="w-4 h-4 mr-2" />
               Statü Değiştir
             </ContextMenuSubTrigger>
@@ -321,7 +365,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                 <ContextMenuItem
                   key={col.id}
                   onClick={() => moveCard(card.id, col.id)}
-                  disabled={card.status === col.id}
+                  disabled={card.status === col.id || isLocked}
                 >
                   {col.title}
                 </ContextMenuItem>
@@ -332,6 +376,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
           <ContextMenuItem
             onClick={() => setShowDeleteConfirm(true)}
             className="text-red-500 focus:text-red-500"
+            disabled={isLocked}
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Sil
@@ -377,6 +422,26 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               className="bg-yellow-500 hover:bg-yellow-600 text-black"
             >
               Quick Fix Başlat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showTerminalConfirm} onOpenChange={setShowTerminalConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Open Interactive Terminal</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>Tip:</strong> Use <kbd className="px-1.5 py-0.5 bg-secondary border border-border rounded text-xs">⌘V</kbd> to paste in Ghostty terminal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleOpenTerminal}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              Open Terminal
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

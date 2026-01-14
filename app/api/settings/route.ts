@@ -27,7 +27,20 @@ const DEFAULT_SETTINGS: AppSettings = {
   skillsPath: "~/.claude/skills",
   mcpConfigPath: "~/.claude.json",
   terminalApp: "iterm2",
+  detectedTerminal: null,
 };
+
+// Detect terminal from TERM_PROGRAM env variable
+function detectTerminal(): TerminalApp | null {
+  const termProgram = process.env.TERM_PROGRAM?.toLowerCase();
+  if (!termProgram) return null;
+
+  if (termProgram === "ghostty") return "ghostty";
+  if (termProgram === "iterm.app") return "iterm2";
+  if (termProgram === "apple_terminal") return "terminal";
+
+  return null;
+}
 
 // GET /api/settings - Returns all settings
 export async function GET() {
@@ -43,10 +56,13 @@ export async function GET() {
       if (row.key === "terminal_app") result.terminalApp = row.value as TerminalApp;
     }
 
+    // Add detected terminal from environment
+    result.detectedTerminal = detectTerminal();
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Failed to fetch settings:", error);
-    return NextResponse.json(DEFAULT_SETTINGS);
+    return NextResponse.json({ ...DEFAULT_SETTINGS, detectedTerminal: detectTerminal() });
   }
 }
 

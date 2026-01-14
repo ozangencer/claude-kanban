@@ -15,6 +15,7 @@ export default function Home() {
   const {
     fetchCards,
     fetchProjects,
+    fetchSettings,
     isModalOpen,
     isLoading,
     cards,
@@ -31,7 +32,8 @@ export default function Home() {
   useEffect(() => {
     fetchCards();
     fetchProjects();
-  }, [fetchCards, fetchProjects]);
+    fetchSettings();
+  }, [fetchCards, fetchProjects, fetchSettings]);
 
   // Polling: Refresh cards every 10 seconds
   useEffect(() => {

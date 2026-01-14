@@ -83,12 +83,14 @@ export interface AppSettings {
   skillsPath: string;
   mcpConfigPath: string;
   terminalApp: TerminalApp;
+  detectedTerminal: TerminalApp | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   skillsPath: "~/.claude/skills",
   mcpConfigPath: "~/.claude.json",
   terminalApp: "iterm2",
+  detectedTerminal: null,
 };
 
 export const TERMINAL_OPTIONS: { value: TerminalApp; label: string }[] = [
