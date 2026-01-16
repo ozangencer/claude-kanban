@@ -5,7 +5,8 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, COLUMNS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare, FileDown } from "lucide-react";
+import { downloadCardAsMarkdown } from "@/lib/card-export";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -243,6 +244,11 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
     if (!result.success) {
       console.error("Failed to open ideation terminal:", result.error);
     }
+  };
+
+  const handleExportMarkdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    downloadCardAsMarkdown(card, project);
   };
 
   // Get project for this card
@@ -483,6 +489,10 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               ))}
             </ContextMenuSubContent>
           </ContextMenuSub>
+          <ContextMenuItem onClick={handleExportMarkdown}>
+            <FileDown className="w-4 h-4 mr-2" />
+            Export as Markdown
+          </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem
             onClick={() => setShowDeleteConfirm(true)}

@@ -37,7 +37,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2 } from "lucide-react";
+import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2, FileDown } from "lucide-react";
+import { downloadCardAsMarkdown } from "@/lib/card-export";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Strip HTML tags for preview text
 function stripHtml(html: string): string {
@@ -161,6 +167,13 @@ export function CardModal() {
     setTimeout(() => closeModal(), 200);
   };
 
+  // Handle export
+  const handleExport = () => {
+    if (selectedCard) {
+      downloadCardAsMarkdown(selectedCard, project);
+    }
+  };
+
   const handleSave = () => {
     if (selectedCard) {
       const cardId = selectedCard.id;
@@ -260,6 +273,19 @@ export function CardModal() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleExport}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <FileDown className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Export as Markdown</TooltipContent>
+            </Tooltip>
             <Button
               variant="ghost"
               size="icon"
