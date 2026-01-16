@@ -128,6 +128,11 @@ export function CardModal() {
       setComplexity(selectedCard.complexity || "medium");
       setPriority(selectedCard.priority || "medium");
       setProjectId(selectedCard.projectId);
+
+      // Auto-open Test Scenarios when card is in Human Test column
+      if (selectedCard.status === "test") {
+        setTestsOpen(true);
+      }
     }
   }, [selectedCard]);
 

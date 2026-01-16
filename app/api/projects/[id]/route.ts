@@ -27,6 +27,12 @@ export async function PUT(
       documentPaths = body.documentPaths ? JSON.stringify(body.documentPaths) : null;
     }
 
+    // Handle narrativePath
+    let narrativePath = existing.narrativePath;
+    if (body.narrativePath !== undefined) {
+      narrativePath = body.narrativePath || null;
+    }
+
     const updatedProject = {
       name: body.name ?? existing.name,
       folderPath: body.folderPath ?? existing.folderPath,
@@ -34,6 +40,7 @@ export async function PUT(
       color: body.color ?? existing.color,
       isPinned: body.isPinned ?? existing.isPinned,
       documentPaths,
+      narrativePath,
       updatedAt: new Date().toISOString(),
     };
 
@@ -49,6 +56,7 @@ export async function PUT(
       documentPaths: updatedProject.documentPaths
         ? JSON.parse(updatedProject.documentPaths)
         : null,
+      narrativePath: updatedProject.narrativePath,
     });
   } catch (error) {
     console.error("Failed to update project:", error);

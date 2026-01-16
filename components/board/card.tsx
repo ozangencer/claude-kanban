@@ -463,19 +463,19 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
             <>
               <ContextMenuItem onClick={handleUnlock} className="text-orange-500 focus:text-orange-500">
                 <Unlock className="w-4 h-4 mr-2" />
-                Kilidi Aç
+                Unlock
               </ContextMenuItem>
               <ContextMenuSeparator />
             </>
           )}
           <ContextMenuItem onClick={handleClick} disabled={isLocked}>
             <ExternalLink className="w-4 h-4 mr-2" />
-            Detay Aç
+            Open Details
           </ContextMenuItem>
           <ContextMenuSub>
             <ContextMenuSubTrigger disabled={isLocked}>
               <ArrowRightLeft className="w-4 h-4 mr-2" />
-              Statü Değiştir
+              Change Status
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="w-40">
               {COLUMNS.map((col) => (
@@ -500,7 +500,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
             disabled={isLocked}
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            Sil
+            Delete
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -508,18 +508,18 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Kartı Sil</AlertDialogTitle>
+            <AlertDialogTitle>Delete Card</AlertDialogTitle>
             <AlertDialogDescription>
-              &quot;{card.title}&quot; kartını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+              Are you sure you want to delete &quot;{card.title}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteCard(card.id)}
               className="bg-red-500 hover:bg-red-600"
             >
-              Sil
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

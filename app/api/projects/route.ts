@@ -18,6 +18,7 @@ export async function GET() {
         color: row.color,
         isPinned: row.isPinned,
         documentPaths: row.documentPaths ? JSON.parse(row.documentPaths) : null,
+        narrativePath: row.narrativePath,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       }))
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
       color: body.color || "#5e6ad2",
       isPinned: body.isPinned || false,
       documentPaths: body.documentPaths ? JSON.stringify(body.documentPaths) : null,
+      narrativePath: body.narrativePath || null,
       createdAt: now,
       updatedAt: now,
     };
@@ -76,6 +78,7 @@ export async function POST(request: NextRequest) {
     const responseProject = {
       ...newProject,
       documentPaths: body.documentPaths || null,
+      narrativePath: body.narrativePath || null,
     };
     return NextResponse.json(responseProject, { status: 201 });
   } catch (error) {

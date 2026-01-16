@@ -36,15 +36,23 @@ function escapeShellArg(arg: string): string {
   return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
-function buildEvaluatePrompt(card: { title: string; description: string }): string {
+function buildEvaluatePrompt(
+  card: { title: string; description: string },
+  narrativePath?: string | null
+): string {
   const title = stripHtml(card.title);
   const description = stripHtml(card.description);
+
+  // Use custom narrative path if provided, otherwise default to docs/product-narrative.md
+  const narrativeRef = narrativePath
+    ? `@${narrativePath}`
+    : "@docs/product-narrative.md";
 
   return `You are a Product Architect evaluating this idea. Be BRUTALLY HONEST.
 
 ## Context Files
 Read these files for context:
-- @docs/product-narrative.md (project vision & scope) - if it exists
+- ${narrativeRef} (project vision & scope) - if it exists
 - @CLAUDE.md (technical guidelines) - if it exists
 
 ## Idea to Evaluate
@@ -137,11 +145,15 @@ export async function POST(
     );
   }
 
+  // Get narrativePath from project
+  const narrativePath = project?.narrativePath || null;
+
   console.log(`[Evaluate] Starting evaluation for card ${id}`);
   console.log(`[Evaluate] Working dir: ${workingDir}`);
+  console.log(`[Evaluate] Narrative path: ${narrativePath || 'default (docs/product-narrative.md)'}`);
 
   try {
-    const prompt = buildEvaluatePrompt(card);
+    const prompt = buildEvaluatePrompt(card, narrativePath);
     const escapedPrompt = escapeShellArg(prompt);
 
     // Use permission-mode dontAsk since we're only reading files for context

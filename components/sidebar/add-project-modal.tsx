@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Folder, ArrowLeft, ArrowRight, AlertTriangle, Info } from "lucide-react";
+import { Folder, ArrowLeft, ArrowRight, AlertTriangle, Info, FileText } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -51,6 +51,8 @@ interface NarrativeData {
   successMetrics: string;
 }
 
+type NarrativeMode = "create" | "existing" | "skip";
+
 export function AddProjectModal({ onClose }: AddProjectModalProps) {
   const { addProject } = useKanbanStore();
 
@@ -64,6 +66,8 @@ export function AddProjectModal({ onClose }: AddProjectModalProps) {
   const [color, setColor] = useState("#5e6ad2");
 
   // Step 2 fields (narrative)
+  const [narrativeMode, setNarrativeMode] = useState<NarrativeMode>("create");
+  const [existingNarrativePath, setExistingNarrativePath] = useState("");
   const [narrative, setNarrative] = useState<NarrativeData>({
     storyBehindThis: "",
     problem: "",
@@ -76,7 +80,6 @@ export function AddProjectModal({ onClose }: AddProjectModalProps) {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
-  const [skippedNarrative, setSkippedNarrative] = useState(false);
 
   const handleFolderPick = async () => {
     setIsPickingFolder(true);
@@ -109,16 +112,18 @@ export function AddProjectModal({ onClose }: AddProjectModalProps) {
     setStep(1);
   };
 
-  const handleSkipNarrative = () => {
-    setSkippedNarrative(true);
-    handleCreateProject();
-  };
-
   const handleCreateProject = async () => {
     if (!name.trim() || !folderPath.trim()) return;
 
     setIsSubmitting(true);
     try {
+      // Determine narrativePath based on mode
+      let narrativePath: string | null = null;
+      if (narrativeMode === "existing" && existingNarrativePath.trim()) {
+        narrativePath = existingNarrativePath.trim();
+      }
+      // If mode is "create" or "skip", narrativePath stays null (use default or skip)
+
       // Create project
       const response = await fetch("/api/projects", {
         method: "POST",
@@ -129,13 +134,14 @@ export function AddProjectModal({ onClose }: AddProjectModalProps) {
           idPrefix: idPrefix.trim() || name.replace(/[^a-zA-Z0-9]/g, "").substring(0, 3).toUpperCase(),
           color,
           isPinned: false,
+          narrativePath,
         }),
       });
 
       const newProject = await response.json();
 
-      // Create narrative if not skipped and has content
-      if (!skippedNarrative && hasNarrativeContent()) {
+      // Create narrative if mode is "create" and has content
+      if (narrativeMode === "create" && hasNarrativeContent()) {
         await fetch(`/api/projects/${newProject.id}/narrative`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -301,96 +307,193 @@ export function AddProjectModal({ onClose }: AddProjectModalProps) {
               </AlertDescription>
             </Alert>
 
-            {/* Story Behind This */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Story Behind This
+            {/* Narrative Mode Selection */}
+            <div className="space-y-3">
+              {/* Option 1: Create with AI */}
+              <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="radio"
+                  name="narrativeMode"
+                  value="create"
+                  checked={narrativeMode === "create"}
+                  onChange={() => setNarrativeMode("create")}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-sm">Create with AI</div>
+                  <div className="text-xs text-muted-foreground">Fill form below, AI generates narrative file</div>
+                </div>
               </label>
-              <Textarea
-                value={narrative.storyBehindThis}
-                onChange={(e) => updateNarrative("storyBehindThis", e.target.value)}
-                placeholder="Why are you building this? What's your motivation?"
-                rows={2}
-              />
+
+              {/* Option 2: Use existing file */}
+              <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="radio"
+                  name="narrativeMode"
+                  value="existing"
+                  checked={narrativeMode === "existing"}
+                  onChange={() => setNarrativeMode("existing")}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-sm">Use existing file</div>
+                  <div className="text-xs text-muted-foreground">Reference an existing doc (README, spec, etc.)</div>
+                  {narrativeMode === "existing" && (
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        value={existingNarrativePath}
+                        onChange={(e) => setExistingNarrativePath(e.target.value)}
+                        placeholder="README.md"
+                        className="flex-1 h-8 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Browse files"
+                        onClick={async () => {
+                          try {
+                            // Pass project folder as default location
+                            const url = folderPath
+                              ? `/api/file-picker?path=${encodeURIComponent(folderPath)}`
+                              : "/api/file-picker";
+                            const response = await fetch(url);
+                            const data = await response.json();
+                            if (data.path && folderPath) {
+                              // Make path relative to project folder
+                              const relativePath = data.path.startsWith(folderPath)
+                                ? data.path.slice(folderPath.length + 1)
+                                : data.path;
+                              setExistingNarrativePath(relativePath);
+                            }
+                          } catch (error) {
+                            console.error("Failed to pick file:", error);
+                          }
+                        }}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  {narrativeMode === "existing" && (
+                    <div className="text-xs text-muted-foreground mt-1">Relative to project folder</div>
+                  )}
+                </div>
+              </label>
+
+              {/* Option 3: Skip */}
+              <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="radio"
+                  name="narrativeMode"
+                  value="skip"
+                  checked={narrativeMode === "skip"}
+                  onChange={() => setNarrativeMode("skip")}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-sm">Skip</div>
+                  <div className="text-xs text-muted-foreground">Use default path (docs/product-narrative.md)</div>
+                </div>
+              </label>
             </div>
 
-            {/* Problem */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Problem
-              </label>
-              <Textarea
-                value={narrative.problem}
-                onChange={(e) => updateNarrative("problem", e.target.value)}
-                placeholder="What problem does this solve?"
-                rows={2}
-              />
-            </div>
+            {/* Create with AI form fields - only show when "create" is selected */}
+            {narrativeMode === "create" && (
+              <div className="space-y-4 pt-2 border-t">
+                {/* Story Behind This */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Story Behind This
+                  </label>
+                  <Textarea
+                    value={narrative.storyBehindThis}
+                    onChange={(e) => updateNarrative("storyBehindThis", e.target.value)}
+                    placeholder="Why are you building this? What's your motivation?"
+                    rows={2}
+                  />
+                </div>
 
-            {/* Target Users */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Target Users
-              </label>
-              <Textarea
-                value={narrative.targetUsers}
-                onChange={(e) => updateNarrative("targetUsers", e.target.value)}
-                placeholder="Who will use this?"
-                rows={2}
-              />
-            </div>
+                {/* Problem */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Problem
+                  </label>
+                  <Textarea
+                    value={narrative.problem}
+                    onChange={(e) => updateNarrative("problem", e.target.value)}
+                    placeholder="What problem does this solve?"
+                    rows={2}
+                  />
+                </div>
 
-            {/* Core Features */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Core Features
-              </label>
-              <Textarea
-                value={narrative.coreFeatures}
-                onChange={(e) => updateNarrative("coreFeatures", e.target.value)}
-                placeholder="3-5 main features"
-                rows={2}
-              />
-            </div>
+                {/* Target Users */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Target Users
+                  </label>
+                  <Textarea
+                    value={narrative.targetUsers}
+                    onChange={(e) => updateNarrative("targetUsers", e.target.value)}
+                    placeholder="Who will use this?"
+                    rows={2}
+                  />
+                </div>
 
-            {/* Non-Goals */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Non-Goals (Out of Scope)
-              </label>
-              <Textarea
-                value={narrative.nonGoals}
-                onChange={(e) => updateNarrative("nonGoals", e.target.value)}
-                placeholder="What will this NOT do?"
-                rows={2}
-              />
-            </div>
+                {/* Core Features */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Core Features
+                  </label>
+                  <Textarea
+                    value={narrative.coreFeatures}
+                    onChange={(e) => updateNarrative("coreFeatures", e.target.value)}
+                    placeholder="3-5 main features"
+                    rows={2}
+                  />
+                </div>
 
-            {/* Tech Stack */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Tech Stack
-              </label>
-              <Textarea
-                value={narrative.techStack}
-                onChange={(e) => updateNarrative("techStack", e.target.value)}
-                placeholder="Technologies being used"
-                rows={2}
-              />
-            </div>
+                {/* Non-Goals */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Non-Goals (Out of Scope)
+                  </label>
+                  <Textarea
+                    value={narrative.nonGoals}
+                    onChange={(e) => updateNarrative("nonGoals", e.target.value)}
+                    placeholder="What will this NOT do?"
+                    rows={2}
+                  />
+                </div>
 
-            {/* Success Metrics */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Success Metrics
-              </label>
-              <Textarea
-                value={narrative.successMetrics}
-                onChange={(e) => updateNarrative("successMetrics", e.target.value)}
-                placeholder="How will you measure success?"
-                rows={2}
-              />
-            </div>
+                {/* Tech Stack */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Tech Stack
+                  </label>
+                  <Textarea
+                    value={narrative.techStack}
+                    onChange={(e) => updateNarrative("techStack", e.target.value)}
+                    placeholder="Technologies being used"
+                    rows={2}
+                  />
+                </div>
+
+                {/* Success Metrics */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">
+                    Success Metrics
+                  </label>
+                  <Textarea
+                    value={narrative.successMetrics}
+                    onChange={(e) => updateNarrative("successMetrics", e.target.value)}
+                    placeholder="How will you measure success?"
+                    rows={2}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -415,19 +518,11 @@ export function AddProjectModal({ onClose }: AddProjectModalProps) {
                 Back
               </Button>
               <Button
-                variant="outline"
-                onClick={handleSkipNarrative}
-                disabled={isSubmitting}
-                className="text-muted-foreground"
-              >
-                Skip for now
-              </Button>
-              <Button
                 onClick={handleCreateProject}
-                disabled={isSubmitting}
+                disabled={isSubmitting || (narrativeMode === "existing" && !existingNarrativePath.trim())}
               >
                 {isSubmitting
-                  ? (hasNarrativeContent() ? "AI generating narrative..." : "Creating...")
+                  ? (narrativeMode === "create" && hasNarrativeContent() ? "AI generating narrative..." : "Creating...")
                   : "Create Project"}
               </Button>
             </>
@@ -435,10 +530,10 @@ export function AddProjectModal({ onClose }: AddProjectModalProps) {
         </DialogFooter>
 
         {/* Skip warning */}
-        {step === 2 && !hasNarrativeContent() && (
+        {step === 2 && narrativeMode === "skip" && (
           <p className="text-xs text-muted-foreground text-center mt-2">
             <AlertTriangle className="inline h-3 w-3 mr-1" />
-            Without a narrative, AI evaluations will be limited
+            Without a narrative file, AI evaluations may be limited
           </p>
         )}
       </DialogContent>

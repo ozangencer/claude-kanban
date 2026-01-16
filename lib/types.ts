@@ -36,6 +36,7 @@ export interface Project {
   color: string;
   isPinned: boolean;
   documentPaths: string[] | null; // Custom document paths, null = smart discovery
+  narrativePath: string | null; // Relative path to narrative file, null = docs/product-narrative.md
   createdAt: string;
   updatedAt: string;
 }

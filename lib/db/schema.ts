@@ -10,6 +10,7 @@ export const projects = sqliteTable("projects", {
   color: text("color").notNull().default("#5e6ad2"),
   isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false),
   documentPaths: text("document_paths"), // JSON array of custom document paths, null = smart discovery
+  narrativePath: text("narrative_path"), // Relative path to narrative file, null = use default (docs/product-narrative.md)
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
