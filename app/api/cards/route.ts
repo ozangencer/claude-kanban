@@ -21,6 +21,8 @@ export async function GET() {
     projectFolder: row.projectFolder,
     projectId: row.projectId,
     taskNumber: row.taskNumber,
+    gitBranchName: row.gitBranchName,
+    gitBranchStatus: row.gitBranchStatus as Card["gitBranchStatus"],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     completedAt: row.completedAt,
@@ -32,6 +34,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const now = new Date().toISOString();
+
+  // Validate title is required and not empty
+  const title = body.title?.trim() || "";
+  if (!title) {
+    return NextResponse.json(
+      { error: "Title is required" },
+      { status: 400 }
+    );
+  }
 
   let taskNumber: number | null = null;
   let projectFolder = body.projectFolder || "";
@@ -61,7 +72,7 @@ export async function POST(request: NextRequest) {
 
   const newCard = {
     id: uuidv4(),
-    title: body.title || "",
+    title,
     description: ensureHtml(body.description || ""),
     solutionSummary: ensureHtml(body.solutionSummary || ""),
     testScenarios: ensureHtml(body.testScenarios || ""),

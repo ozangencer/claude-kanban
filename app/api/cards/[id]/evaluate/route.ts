@@ -95,6 +95,10 @@ You MUST provide your evaluation as markdown with EXACTLY these sections:
 [PRIORITY: low/medium/high] - Your reasoning for this priority level
 (Based on urgency, impact, and alignment with project goals. Be honest - not everything is high priority!)
 
+## Complexity
+[COMPLEXITY: trivial/low/medium/high/very_high] - Your assessment
+(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
+
 ## Final Score
 [X/10] - Brief justification for the score
 
@@ -198,9 +202,16 @@ export async function POST(
       priority = priorityMatch[1].toLowerCase() as "low" | "medium" | "high";
     }
 
-    // Update database - update aiOpinion and priority (if found)
+    // Extract complexity from response
+    let complexity: "trivial" | "low" | "medium" | "high" | "very_high" | null = null;
+    const complexityMatch = responseText.match(/\[COMPLEXITY:\s*(trivial|low|medium|high|very_high)\]/i);
+    if (complexityMatch) {
+      complexity = complexityMatch[1].toLowerCase() as "trivial" | "low" | "medium" | "high" | "very_high";
+    }
+
+    // Update database - update aiOpinion, priority, and complexity (if found)
     const updatedAt = new Date().toISOString();
-    const updates: { aiOpinion: string; updatedAt: string; priority?: string } = {
+    const updates: { aiOpinion: string; updatedAt: string; priority?: string; complexity?: string } = {
       aiOpinion,
       updatedAt,
     };
@@ -208,6 +219,11 @@ export async function POST(
     if (priority) {
       updates.priority = priority;
       console.log(`[Evaluate] Updating priority to: ${priority}`);
+    }
+
+    if (complexity) {
+      updates.complexity = complexity;
+      console.log(`[Evaluate] Updating complexity to: ${complexity}`);
     }
 
     db.update(schema.cards)
@@ -219,6 +235,8 @@ export async function POST(
       success: true,
       cardId: id,
       aiOpinion,
+      priority,
+      complexity,
       cost,
       duration,
     });

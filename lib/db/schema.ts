@@ -32,6 +32,8 @@ export const cards = sqliteTable("cards", {
   projectFolder: text("project_folder").notNull().default(""),
   projectId: text("project_id"),
   taskNumber: integer("task_number"),
+  gitBranchName: text("git_branch_name"),     // "kanban/PRJ-1-add-auth" or null
+  gitBranchStatus: text("git_branch_status"), // "active" | "merged" | "rolled_back" | null
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
   completedAt: text("completed_at"),  // ISO date string, null if not completed

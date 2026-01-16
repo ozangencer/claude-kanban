@@ -478,6 +478,7 @@ export const useKanbanStore = create<KanbanStore>()(
       // data.phase: "planning" | "implementation" | "retest"
       // data.newStatus: new status after operation
       // data.response: content to save (solutionSummary or testScenarios)
+      // data.complexity, data.priority: extracted from planning phase
       set((state) => ({
         cards: state.cards.map((card) => {
           if (card.id !== cardId) return card;
@@ -490,6 +491,13 @@ export const useKanbanStore = create<KanbanStore>()(
           // Update the appropriate field based on phase
           if (data.phase === "planning") {
             updates.solutionSummary = data.response;
+            // Update complexity and priority if provided
+            if (data.complexity) {
+              updates.complexity = data.complexity;
+            }
+            if (data.priority) {
+              updates.priority = data.priority;
+            }
           } else if (data.phase === "implementation" || data.phase === "retest") {
             updates.testScenarios = data.response;
           }
@@ -682,16 +690,27 @@ export const useKanbanStore = create<KanbanStore>()(
         return { success: false, error: data.error || "Failed to evaluate idea" };
       }
 
-      // Update card with AI opinion
+      // Update card with AI opinion, priority, and complexity
       set((state) => ({
         cards: state.cards.map((card) => {
           if (card.id !== cardId) return card;
 
-          return {
-            ...card,
+          const updates: Partial<Card> = {
             aiOpinion: data.aiOpinion,
             updatedAt: new Date().toISOString(),
           };
+
+          // Update priority if provided
+          if (data.priority) {
+            updates.priority = data.priority;
+          }
+
+          // Update complexity if provided
+          if (data.complexity) {
+            updates.complexity = data.complexity;
+          }
+
+          return { ...card, ...updates };
         }),
         evaluatingCardId: null,
         lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),

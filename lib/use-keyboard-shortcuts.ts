@@ -53,6 +53,8 @@ export function useKeyboardShortcuts() {
             priority: "medium",
             projectFolder: activeProject?.folderPath || "",
             projectId: activeProjectId,
+            gitBranchName: null,
+            gitBranchStatus: null,
           });
         }
       }

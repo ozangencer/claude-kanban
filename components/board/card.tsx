@@ -146,6 +146,8 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
   const isQuickFixing = quickFixingCardId === card.id;
   const isEvaluating = evaluatingCardId === card.id;
   const isLocked = lockedCardIds.includes(card.id);
+  // Background processing = auto unlock when done, no manual unlock needed
+  const isBackgroundProcessing = isStarting || isQuickFixing || isEvaluating;
   const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed" && card.status !== "test" && card.status !== "ideation");
   const canQuickFix = card.status === "bugs" && !!(card.description && (card.projectId || card.projectFolder));
   const canEvaluate = card.status === "ideation" && !!(card.description && (card.projectId || card.projectFolder));
@@ -288,8 +290,8 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                 : "hover:border-primary/50"
             }`}
           >
-            {/* Unlock button for locked cards */}
-            {isLocked && (
+            {/* Unlock button - only for interactive locks (terminal), not background processing */}
+            {isLocked && !isBackgroundProcessing && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -473,7 +475,8 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent className="w-48">
-          {isLocked && (
+          {/* Unlock option - only for interactive locks (terminal), not background processing */}
+          {isLocked && !isBackgroundProcessing && (
             <>
               <ContextMenuItem onClick={handleUnlock} className="text-orange-500 focus:text-orange-500">
                 <Unlock className="w-4 h-4 mr-2" />

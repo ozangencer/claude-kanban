@@ -8,6 +8,7 @@ export type Status =
 
 export type Complexity = "low" | "medium" | "high";
 export type Priority = "low" | "medium" | "high";
+export type GitBranchStatus = "active" | "merged" | "rolled_back" | null;
 
 export interface Card {
   id: string;
@@ -22,6 +23,8 @@ export interface Card {
   projectFolder: string;
   projectId: string | null;
   taskNumber: number | null;
+  gitBranchName: string | null;
+  gitBranchStatus: GitBranchStatus;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;

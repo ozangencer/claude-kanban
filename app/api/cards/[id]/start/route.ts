@@ -5,6 +5,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { marked } from "marked";
 import type { Status } from "@/lib/types";
+import { createBranch, generateBranchName, isGitRepo, checkoutBranch, branchExists } from "@/lib/git";
 
 const execAsync = promisify(exec);
 
@@ -80,7 +81,6 @@ ${description}
 2. List implementation steps in order
 3. Consider edge cases and error handling
 4. Note any dependencies or prerequisites
-5. Estimate complexity (simple/moderate/complex)
 
 ## Output Format
 Provide a structured plan in markdown:
@@ -89,6 +89,15 @@ Provide a structured plan in markdown:
 - **Edge Cases**: Potential issues to handle
 - **Dependencies**: Required packages or services
 - **Notes**: Any important considerations
+
+## REQUIRED: Assessment Tags
+You MUST include these assessment tags at the END of your response:
+
+[COMPLEXITY: trivial/low/medium/high/very_high]
+(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
+
+[PRIORITY: low/medium/high]
+(Based on urgency, impact, and dependencies. Be honest - not everything is high priority!)
 
 Do NOT implement yet - only plan.`;
 
@@ -191,6 +200,63 @@ export async function POST(
   console.log(`[Claude CLI] Phase: ${phase}`);
   console.log(`[Claude CLI] Current status: ${card.status} → New status: ${newStatus}`);
 
+  // Handle git branch for implementation phase
+  let gitBranchName = card.gitBranchName;
+  let gitBranchStatus = card.gitBranchStatus;
+
+  if (phase === "implementation" && project && card.taskNumber) {
+    const isRepo = await isGitRepo(workingDir);
+
+    if (isRepo) {
+      // Check if card already has a branch
+      if (!card.gitBranchName) {
+        // Create new branch
+        const branchName = generateBranchName(
+          project.idPrefix,
+          card.taskNumber,
+          card.title
+        );
+
+        console.log(`[Git] Creating branch: ${branchName}`);
+
+        const result = await createBranch(workingDir, branchName);
+
+        if (result.success) {
+          gitBranchName = branchName;
+          gitBranchStatus = "active";
+          console.log(`[Git] Branch created successfully: ${branchName}`);
+        } else {
+          console.error(`[Git] Failed to create branch: ${result.error}`);
+          return NextResponse.json(
+            { error: `Failed to create git branch: ${result.error}` },
+            { status: 500 }
+          );
+        }
+      } else {
+        // Card already has a branch - checkout to it
+        const exists = await branchExists(workingDir, card.gitBranchName);
+
+        if (exists) {
+          console.log(`[Git] Checking out existing branch: ${card.gitBranchName}`);
+          const checkoutResult = await checkoutBranch(workingDir, card.gitBranchName);
+
+          if (!checkoutResult.success) {
+            console.error(`[Git] Failed to checkout branch: ${checkoutResult.error}`);
+            return NextResponse.json(
+              { error: `Failed to checkout git branch: ${checkoutResult.error}` },
+              { status: 500 }
+            );
+          }
+        } else {
+          console.warn(`[Git] Branch ${card.gitBranchName} no longer exists`);
+          // Branch was deleted externally, clear git info
+          gitBranchName = null;
+          gitBranchStatus = null;
+        }
+      }
+    }
+  }
+
   try {
     // Run Claude CLI
     const result = await runClaudeCli(prompt, workingDir, phase);
@@ -200,16 +266,39 @@ export async function POST(
     // Convert checkbox format for TipTap TaskList compatibility
     const htmlResponse = convertToTipTapTaskList(markedHtml);
 
+    // Extract complexity and priority from planning phase response
+    let complexity: string | null = null;
+    let priority: string | null = null;
+
+    if (phase === "planning") {
+      const complexityMatch = result.response.match(/\[COMPLEXITY:\s*(trivial|low|medium|high|very_high)\]/i);
+      if (complexityMatch) {
+        complexity = complexityMatch[1].toLowerCase();
+        console.log(`[Claude CLI] Extracted complexity: ${complexity}`);
+      }
+
+      const priorityMatch = result.response.match(/\[PRIORITY:\s*(low|medium|high)\]/i);
+      if (priorityMatch) {
+        priority = priorityMatch[1].toLowerCase();
+        console.log(`[Claude CLI] Extracted priority: ${priority}`);
+      }
+    }
+
     // Prepare database updates based on phase
     const updatedAt = new Date().toISOString();
-    const updates: Record<string, string> = {
+    const updates: Record<string, string | null> = {
       status: newStatus,
       updatedAt,
+      gitBranchName,
+      gitBranchStatus,
     };
 
     switch (phase) {
       case "planning":
         updates.solutionSummary = htmlResponse;
+        // Add complexity and priority if extracted
+        if (complexity) updates.complexity = complexity;
+        if (priority) updates.priority = priority;
         break;
       case "implementation":
         updates.testScenarios = htmlResponse;
@@ -232,8 +321,12 @@ export async function POST(
       phase,
       newStatus,
       response: htmlResponse,
+      complexity,
+      priority,
       cost: result.cost,
       duration: result.duration,
+      gitBranchName,
+      gitBranchStatus,
     });
   } catch (error) {
     console.error("Claude CLI error:", error);

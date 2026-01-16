@@ -28,7 +28,7 @@ export function Column({ id, title, cards }: ColumnProps) {
   const handleAddCard = () => {
     const activeProject = projects.find((p) => p.id === activeProjectId);
     addCardAndOpen({
-      title: "New Task",
+      title: "",
       description: "",
       solutionSummary: "",
       testScenarios: "",
@@ -38,6 +38,8 @@ export function Column({ id, title, cards }: ColumnProps) {
       priority: "medium",
       projectFolder: activeProject?.folderPath || "",
       projectId: activeProjectId,
+      gitBranchName: null,
+      gitBranchStatus: null,
     });
   };
 

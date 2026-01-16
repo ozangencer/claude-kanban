@@ -169,6 +169,35 @@ export async function POST(
       ? convertToTipTapTaskList(await marked(testsMatch[0]))
       : convertToTipTapTaskList(await marked("## Test Scenarios\n- [ ] Bug fix verified\n- [ ] No regression"));
 
+    // Auto-commit the changes
+    const displayId = project
+      ? `${project.idPrefix}-${card.taskNumber}`
+      : `TASK-${card.taskNumber || "X"}`;
+
+    const commitMessage = `fix(${displayId}): Quick fix - ${card.title}`;
+
+    try {
+      // Stage all changes
+      await execAsync("git add -A", { cwd: workingDir });
+
+      // Check if there are changes to commit
+      const { stdout: status } = await execAsync("git status --porcelain", {
+        cwd: workingDir,
+      });
+
+      if (status.trim()) {
+        // Commit the changes
+        const escapedMsg = commitMessage.replace(/"/g, '\\"');
+        await execAsync(`git commit -m "${escapedMsg}"`, { cwd: workingDir });
+        console.log(`[Quick Fix] Auto-committed: ${commitMessage}`);
+      } else {
+        console.log(`[Quick Fix] No changes to commit`);
+      }
+    } catch (gitError) {
+      console.error("[Quick Fix] Auto-commit failed:", gitError);
+      // Commit fail olsa bile devam et - quick fix başarılı
+    }
+
     // Update database - move to test status
     const updatedAt = new Date().toISOString();
     const newStatus: Status = "test";

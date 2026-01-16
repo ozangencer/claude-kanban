@@ -10,6 +10,7 @@ import {
   Priority,
   COMPLEXITY_OPTIONS,
   PRIORITY_OPTIONS,
+  GitBranchStatus,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2, FileDown } from "lucide-react";
+import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2, FileDown, GitBranch, GitMerge, Undo2, Loader2 } from "lucide-react";
 import { downloadCardAsMarkdown } from "@/lib/card-export";
 import {
   Tooltip,
@@ -89,6 +90,13 @@ export function CardModal() {
   // Card navigation history for back button
   const [cardHistory, setCardHistory] = useState<string[]>([]);
 
+  // Git branch state
+  const [gitBranchName, setGitBranchName] = useState<string | null>(null);
+  const [gitBranchStatus, setGitBranchStatus] = useState<GitBranchStatus>(null);
+  const [isMerging, setIsMerging] = useState(false);
+  const [showRollbackDialog, setShowRollbackDialog] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
+
   // Track unsaved changes
   const hasUnsavedChanges = selectedCard && (
     title !== selectedCard.title ||
@@ -106,8 +114,9 @@ export function CardModal() {
   const project = projects.find((p) => p.id === projectId);
   const displayId = selectedCard ? getDisplayId(selectedCard, project) : null;
 
-  // Check if save should be disabled (no project selected)
-  const canSave = projectId !== null;
+  // Check if save should be disabled (no project selected or no title)
+  const isTitleValid = (title || "").trim().length > 0;
+  const canSave = projectId !== null && isTitleValid;
 
   useEffect(() => {
     if (selectedCard) {
@@ -128,6 +137,8 @@ export function CardModal() {
       setComplexity(selectedCard.complexity || "medium");
       setPriority(selectedCard.priority || "medium");
       setProjectId(selectedCard.projectId);
+      setGitBranchName(selectedCard.gitBranchName);
+      setGitBranchStatus(selectedCard.gitBranchStatus);
 
       // Auto-open Test Scenarios when card is in Human Test column
       if (selectedCard.status === "test") {
@@ -176,6 +187,61 @@ export function CardModal() {
   const handleExport = () => {
     if (selectedCard) {
       downloadCardAsMarkdown(selectedCard, project);
+    }
+  };
+
+  // Handle git merge
+  const handleMerge = async () => {
+    if (!selectedCard) return;
+
+    setIsMerging(true);
+    try {
+      const response = await fetch(`/api/cards/${selectedCard.id}/git/merge`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Merge failed: ${error.error}`);
+        return;
+      }
+
+      // Refresh the card data
+      await useKanbanStore.getState().fetchCards();
+      handleClose();
+    } catch (error) {
+      alert(`Merge failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  // Handle git rollback
+  const handleRollback = async (deleteBranch: boolean) => {
+    if (!selectedCard) return;
+
+    setIsRollingBack(true);
+    try {
+      const response = await fetch(`/api/cards/${selectedCard.id}/git/rollback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteBranch }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(`Rollback failed: ${error.error}`);
+        return;
+      }
+
+      // Refresh the card data
+      await useKanbanStore.getState().fetchCards();
+      setShowRollbackDialog(false);
+      handleClose();
+    } catch (error) {
+      alert(`Rollback failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsRollingBack(false);
     }
   };
 
@@ -261,10 +327,15 @@ export function CardModal() {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="bg-transparent border-none outline-none w-full text-foreground p-0"
+              className={`bg-transparent border-none outline-none w-full text-foreground p-0 ${
+                !isTitleValid ? "placeholder:text-muted-foreground/50" : ""
+              }`}
               style={{ fontSize: "2rem", fontWeight: 700, lineHeight: 1.2 }}
-              placeholder="Task title"
+              placeholder="New Title"
             />
+            {!isTitleValid && (
+              <p className="text-xs text-destructive mt-1">Title is required</p>
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {cardHistory.length > 0 && (
@@ -565,6 +636,59 @@ export function CardModal() {
               />
             </CollapsibleContent>
           </Collapsible>
+
+          {/* Git Branch Section - Show when card is in Human Test and has a branch */}
+          {status === "test" && gitBranchName && gitBranchStatus === "active" && (
+            <div className="border border-border rounded-lg p-4 bg-muted/30 mt-4">
+              <div className="flex items-center gap-2 text-sm mb-3">
+                <GitBranch className="h-4 w-4 text-muted-foreground" />
+                <span className="font-mono text-muted-foreground">{gitBranchName}</span>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleMerge}
+                  disabled={isMerging}
+                  className="flex-1"
+                >
+                  {isMerging ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <GitMerge className="mr-2 h-4 w-4" />
+                  )}
+                  Merge to Main
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRollbackDialog(true)}
+                  disabled={isMerging || isRollingBack}
+                >
+                  <Undo2 className="mr-2 h-4 w-4" />
+                  Rollback
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Show merged/rolled back status */}
+          {gitBranchName && gitBranchStatus === "merged" && (
+            <div className="border border-green-500/30 rounded-lg p-4 bg-green-500/10 mt-4">
+              <div className="flex items-center gap-2 text-sm">
+                <GitMerge className="h-4 w-4 text-green-500" />
+                <span className="text-green-500 font-medium">Branch merged</span>
+                <span className="font-mono text-muted-foreground">{gitBranchName}</span>
+              </div>
+            </div>
+          )}
+
+          {gitBranchName && gitBranchStatus === "rolled_back" && (
+            <div className="border border-yellow-500/30 rounded-lg p-4 bg-yellow-500/10 mt-4">
+              <div className="flex items-center gap-2 text-sm">
+                <Undo2 className="h-4 w-4 text-yellow-500" />
+                <span className="text-yellow-500 font-medium">Rolled back (branch kept)</span>
+                <span className="font-mono text-muted-foreground">{gitBranchName}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -625,6 +749,49 @@ export function CardModal() {
             >
               Discard
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rollback Dialog */}
+      <AlertDialog open={showRollbackDialog} onOpenChange={setShowRollbackDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rollback Branch</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will checkout to the main branch. What would you like to do with the feature branch?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4 space-y-3">
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => handleRollback(false)}
+              disabled={isRollingBack}
+            >
+              {isRollingBack ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <GitBranch className="mr-2 h-4 w-4" />
+              )}
+              Keep branch (can retry later)
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start text-destructive hover:text-destructive"
+              onClick={() => handleRollback(true)}
+              disabled={isRollingBack}
+            >
+              {isRollingBack ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <X className="mr-2 h-4 w-4" />
+              )}
+              Delete branch (start fresh)
+            </Button>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRollingBack}>Cancel</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

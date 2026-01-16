@@ -21,6 +21,18 @@ export async function PUT(
     return NextResponse.json({ error: "Card not found" }, { status: 404 });
   }
 
+  // Validate title if provided - must not be empty
+  if (body.title !== undefined) {
+    const trimmedTitle = body.title?.trim() || "";
+    if (!trimmedTitle) {
+      return NextResponse.json(
+        { error: "Title is required" },
+        { status: 400 }
+      );
+    }
+    body.title = trimmedTitle;
+  }
+
   const now = new Date().toISOString();
   const newProjectId = body.projectId !== undefined ? body.projectId : existing.projectId;
   let taskNumber = existing.taskNumber;
@@ -97,6 +109,8 @@ export async function PUT(
     projectFolder: updatedCard.projectFolder,
     projectId: updatedCard.projectId,
     taskNumber: updatedCard.taskNumber,
+    gitBranchName: existing.gitBranchName,
+    gitBranchStatus: existing.gitBranchStatus as Card["gitBranchStatus"],
     createdAt: existing.createdAt,
     updatedAt: updatedCard.updatedAt,
     completedAt: updatedCard.completedAt,

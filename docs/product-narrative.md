@@ -182,21 +182,161 @@ Autonomous mode'un etkili çalışması için `~/.claude/settings.json` veya pro
 
 | Phase              | Trigger       | Precondition                            | Action                     | Result                                   |
 | ------------------ | ------------- | --------------------------------------- | -------------------------- | ---------------------------------------- |
-| **Planning**       | Play/Terminal | solutionSummary boş                     | Claude plan üretir         | status → progress, solutionSummary dolar |
+| **Ideation**       | Brain/Chat    | Card in Ideation column                 | Claude fikri değerlendirir | aiOpinion, priority, complexity dolar    |
+| **Planning**       | Play/Terminal | solutionSummary boş                     | Claude plan üretir         | status → progress, solutionSummary dolar, priority/complexity güncellenir |
 | **Implementation** | Play/Terminal | solutionSummary dolu, testScenarios boş | Claude kodu yazar          | status → test, testScenarios dolar       |
 | **Re-test**        | Play/Terminal | testScenarios dolu                      | Claude testleri çalıştırır | status değişmez                          |
 
 ### Dynamic Button Tooltips
 
-| Phase          | Play Button              | Terminal Button           |
-| -------------- | ------------------------ | ------------------------- |
-| Planning       | "Plan Task (Autonomous)" | "Plan Task (Interactive)" |
-| Implementation | "Implement (Autonomous)" | "Implement (Interactive)" |
-| Re-test        | "Re-test (Autonomous)"   | "Re-test (Interactive)"   |
+| Phase          | Background Button         | Interactive Button         |
+| -------------- | ------------------------- | -------------------------- |
+| Ideation       | "Evaluate Idea" (Brain)   | "Discuss Idea" (Chat)      |
+| Planning       | "Plan Task (Autonomous)"  | "Plan Task (Interactive)"  |
+| Implementation | "Implement (Autonomous)"  | "Implement (Interactive)"  |
+| Re-test        | "Re-test (Autonomous)"    | "Re-test (Interactive)"    |
+
+---
+
+## Ideation Workflow
+
+Ideation sütunundaki fikirler için iki farklı değerlendirme modu:
+
+### 1. Evaluate Idea (Brain Button - Background)
+
+```
+[Brain Icon] → Background execution → aiOpinion, priority, complexity güncellenir
+```
+
+**Ne yapar:**
+- Fikri YAGNI, scope creep, teknik fizibilite açısından değerlendirir
+- Güçlü/zayıf yönleri listeler
+- Priority ve complexity'yi otomatik belirler
+- Sonuç `aiOpinion` alanına yazılır
+
+**Ne zaman kullanılır:**
+- Hızlı değerlendirme gerektiğinde
+- Batch ideation (birden fazla fikri sırayla değerlendirme)
+- İlk filtre olarak
+
+### 2. Discuss Idea (Chat Button - Interactive)
+
+```
+[Chat Icon] → Terminal açılır → Claude ile interaktif beyin fırtınası
+```
+
+**Ne yapar:**
+- Fikir hakkında sorular sorar
+- Alternatifleri tartışır
+- Scope'u daraltır veya genişletir
+- Session sonunda MCP ile priority, complexity ve opinion kaydeder
+
+**Ne zaman kullanılır:**
+- Karmaşık, çok boyutlu fikirler
+- Scope belirsiz olduğunda
+- Brainstorming ve refinement gerektiğinde
+
+### AI-Driven Assessment Tags
+
+Claude'un değerlendirmelerinde kullandığı standart formatlar:
+
+**Priority:**
+```
+[PRIORITY: low/medium/high]
+```
+- **low**: Nice-to-have, acil değil
+- **medium**: Önemli ama kritik değil
+- **high**: Acil veya blocker
+
+**Complexity:**
+```
+[COMPLEXITY: trivial/low/medium/high/very_high]
+```
+- **trivial**: Birkaç satır değişiklik
+- **low**: Basit, tek dosya değişikliği
+- **medium**: Orta zorluk, birden fazla dosya
+- **high**: Ciddi effort, mimari kararlar
+- **very_high**: Major undertaking, sprint-level iş
+
+Bu değerler Claude tarafından otomatik parse edilir ve card'a kaydedilir.
 
 ---
 
 ## Prompt Templates
+
+### Phase 0: Ideation
+
+**Evaluate Idea (Background):**
+
+```
+You are a Product Architect evaluating this idea. Be BRUTALLY HONEST.
+
+## Context Files
+Read these files for context:
+- @{narrativePath} (project vision & scope) - if it exists
+- @CLAUDE.md (technical guidelines) - if it exists
+
+## Idea to Evaluate
+**Title:** {card.title}
+**Description:** {card.description}
+
+## Your Evaluation Task
+Evaluate this idea from these perspectives:
+1. YAGNI (You Ain't Gonna Need It)
+2. Scope Creep Risk
+3. Scalability
+4. Technical Feasibility
+5. Alignment with Vision
+6. Implementation Complexity
+
+## Output Format (REQUIRED)
+## Summary Verdict
+[Strong Yes / Yes / Maybe / No / Strong No]
+
+## Strengths
+- Point 1
+- Point 2
+
+## Concerns
+- Point 1
+- Point 2
+
+## Recommendations
+- What should be considered
+
+## Priority
+[PRIORITY: low/medium/high] - Your reasoning
+
+## Complexity
+[COMPLEXITY: trivial/low/medium/high/very_high] - Your assessment
+
+## Final Score
+[X/10] - Brief justification
+```
+
+**Discuss Idea (Interactive):**
+
+```
+You are a Product Strategist. Let's brainstorm and refine this idea together.
+
+## Idea to Discuss
+**Title:** {card.title}
+**Description:** {card.description}
+
+## Your Role
+1. Ask clarifying questions
+2. Challenge assumptions - consider YAGNI, scope creep risks
+3. Explore alternatives and improvements
+4. Help refine the concept
+
+## CRITICAL: When Discussion Ends
+Before finishing, you MUST:
+1. Update priority: mcp__kanban__update_card({ id: "{card.id}", priority: "low/medium/high" })
+2. Update complexity: mcp__kanban__update_card({ id: "{card.id}", complexity: "trivial/low/medium/high/very_high" })
+3. Save opinion: mcp__kanban__save_opinion({ id: "{card.id}", aiOpinion: "..." })
+
+Do NOT end without updating priority, complexity, and saving your opinion.
+```
 
 ### Phase 1: Planning
 
@@ -216,7 +356,6 @@ You are a senior software architect. Analyze this task and create a detailed imp
 2. List implementation steps in order
 3. Consider edge cases and error handling
 4. Note any dependencies or prerequisites
-5. Estimate complexity (simple/moderate/complex)
 
 ## Output Format
 Provide a structured plan in markdown:
@@ -225,6 +364,15 @@ Provide a structured plan in markdown:
 - **Edge Cases**: Potential issues to handle
 - **Dependencies**: Required packages or services
 - **Notes**: Any important considerations
+
+## REQUIRED: Assessment Tags
+You MUST include these assessment tags at the END of your response:
+
+[COMPLEXITY: trivial/low/medium/high/very_high]
+(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
+
+[PRIORITY: low/medium/high]
+(Based on urgency, impact, and dependencies. Be honest - not everything is high priority!)
 
 Do NOT implement yet - only plan.
 ```
@@ -239,6 +387,19 @@ You are a senior software architect helping me plan this task.
 
 ## Description
 {card.description}
+
+## Kanban MCP Tools Available
+- mcp__kanban__save_plan - Save solution plan and move card to In Progress
+- mcp__kanban__update_card - Update any card field (including priority, complexity)
+- mcp__kanban__get_card - Get card details
+
+Card ID: {card.id}
+
+## CRITICAL: When Plan is Finalized
+Before finishing, you MUST:
+1. Update complexity: mcp__kanban__update_card({ id: "{card.id}", complexity: "..." })
+2. Update priority: mcp__kanban__update_card({ id: "{card.id}", priority: "..." })
+3. Save plan: mcp__kanban__save_plan({ id: "{card.id}", solutionSummary: "..." })
 
 Analyze this task and help me create an implementation plan. Ask me questions if anything is unclear.
 ```
@@ -530,7 +691,7 @@ GET/PUT      /api/settings
 
 ---
 
-*Document Version: 2.0*
-*Last Updated: 2026-01-13*
+*Document Version: 2.1*
+*Last Updated: 2026-01-16*
 *Author: Product-Architect Agent*
-*Changes: Added Automated Workflow (v0.4), Prompt Templates, Phase Definitions*
+*Changes: Added Ideation Workflow, AI-Driven Assessment Tags (priority/complexity extraction), updated prompt templates*

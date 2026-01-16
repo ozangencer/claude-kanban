@@ -6,6 +6,13 @@ import { writeFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import type { TerminalApp, Status } from "@/lib/types";
+import {
+  createBranch,
+  generateBranchName,
+  isGitRepo,
+  checkoutBranch,
+  branchExists,
+} from "@/lib/git";
 
 type Phase = "planning" | "implementation" | "retest";
 
@@ -23,75 +30,61 @@ function detectPhase(card: { solutionSummary: string | null; testScenarios: stri
   return "retest";
 }
 
-function buildPrompt(
-  phase: Phase,
-  card: { id: string; title: string; description: string; solutionSummary: string | null; testScenarios: string | null }
-): string {
+interface PromptContext {
+  card: {
+    id: string;
+    title: string;
+    description: string;
+    solutionSummary: string | null;
+    testScenarios: string | null;
+  };
+  displayId: string | null;
+  gitBranchName: string | null;
+}
+
+function buildPrompt(phase: Phase, ctx: PromptContext): string {
+  const { card, displayId, gitBranchName } = ctx;
   const title = stripHtml(card.title);
   const description = stripHtml(card.description);
   const solution = card.solutionSummary ? stripHtml(card.solutionSummary) : "";
   const tests = card.testScenarios ? stripHtml(card.testScenarios) : "";
 
-  const mcpInfo = `
-## Kanban MCP Tools Available
-You have access to kanban MCP tools to save your work:
-- mcp__kanban__save_plan - Save solution plan and move card to In Progress
-- mcp__kanban__save_tests - Save test scenarios and move card to Human Test
-- mcp__kanban__update_card - Update any card field
-- mcp__kanban__get_card - Get card details
-
-Card ID for this task: ${card.id}
-
-When you complete a phase, use the appropriate MCP tool to save your work.`;
+  const taskHeader = displayId ? `[${displayId}] ${title}` : title;
+  const branchInfo = gitBranchName ? `Git Branch: ${gitBranchName}` : "";
 
   switch (phase) {
-    case "planning":
-      return `You are a senior software architect helping me plan this task.
+    case "implementation":
+      return `# ${taskHeader}
+${branchInfo}
 
-## Task
-${title}
+## Plan
+${solution}
+
+## Instructions
+Implement the plan above. When done, save test scenarios with:
+mcp__kanban__save_tests({ id: "${card.id}", testScenarios: "..." })`;
+
+    case "retest":
+      return `# ${taskHeader}
+${branchInfo}
+
+## Test Scenarios
+${tests}
+
+## Instructions
+Verify each test scenario. If all pass, use mcp__kanban__update_card to mark complete.
+If tests fail, fix the issues and re-run tests.
+
+Card ID: ${card.id}`;
+
+    // Planning phase should not reach here (blocked earlier), but just in case
+    default:
+      return `# ${taskHeader}
 
 ## Description
 ${description}
-${mcpInfo}
 
-Analyze this task and help me create an implementation plan. Ask me questions if anything is unclear.
-
-## CRITICAL: When Plan is Finalized
-You MUST save the plan before finishing:
-\`\`\`
-mcp__kanban__save_plan({ id: "${card.id}", solutionSummary: "..." })
-\`\`\`
-This moves the card to In Progress. Do NOT end the session without saving the plan.`;
-
-    case "implementation":
-      return `You are a senior developer. I need help implementing this plan.
-
-## Task
-${title}
-
-## Approved Solution Plan
-${solution}
-${mcpInfo}
-
-Let's implement this together. Start with the first step and guide me through.
-
-## CRITICAL: When Implementation is Complete
-You MUST save test scenarios before finishing:
-\`\`\`
-mcp__kanban__save_tests({ id: "${card.id}", testScenarios: "..." })
-\`\`\`
-This moves the card to Human Test. Do NOT end the session without saving tests.`;
-
-    case "retest":
-      return `Let's verify these test scenarios together:
-
-${tests}
-${mcpInfo}
-
-Start with the first test case.
-
-When tests are complete, you can update the card using mcp__kanban__update_card with card ID ${card.id}.`;
+Create an implementation plan for this task.`;
   }
 }
 
@@ -178,11 +171,77 @@ export async function POST(
 
   // Detect current phase
   const phase = detectPhase(card);
-  const prompt = buildPrompt(phase, card);
+
+  // Block terminal if planning phase - must complete planning first
+  if (phase === "planning") {
+    return NextResponse.json(
+      {
+        error: "Plan oluşturulmadan implementation başlatılamaz",
+        details: "Önce Solution Summary alanını doldurun veya Autonomous modda planning çalıştırın.",
+      },
+      { status: 400 }
+    );
+  }
+
   const newStatus = getNewStatus(phase, card.status as Status);
 
   console.log(`[Open Terminal] Phase: ${phase}`);
   console.log(`[Open Terminal] Current status: ${card.status} → New status: ${newStatus}`);
+
+  // Branch creation for implementation phase
+  let gitBranchName = card.gitBranchName;
+
+  if (phase === "implementation" && project && card.taskNumber) {
+    const repoCheck = await isGitRepo(workingDir);
+
+    if (repoCheck && !card.gitBranchName) {
+      // Create new branch for implementation
+      const branchName = generateBranchName(
+        project.idPrefix,
+        card.taskNumber,
+        card.title
+      );
+
+      console.log(`[Open Terminal] Creating branch: ${branchName}`);
+      const result = await createBranch(workingDir, branchName);
+
+      if (result.success) {
+        gitBranchName = branchName;
+
+        // Update card with branch info
+        db.update(schema.cards)
+          .set({
+            gitBranchName: branchName,
+            gitBranchStatus: "active",
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(schema.cards.id, id))
+          .run();
+
+        console.log(`[Open Terminal] Branch created: ${branchName}`);
+      } else {
+        console.error(`[Open Terminal] Branch creation failed: ${result.error}`);
+        return NextResponse.json(
+          { error: `Git branch yaratılamadı: ${result.error}` },
+          { status: 500 }
+        );
+      }
+    } else if (repoCheck && card.gitBranchName) {
+      // Branch already exists - checkout to it
+      const exists = await branchExists(workingDir, card.gitBranchName);
+      if (exists) {
+        console.log(`[Open Terminal] Checking out existing branch: ${card.gitBranchName}`);
+        const checkoutResult = await checkoutBranch(workingDir, card.gitBranchName);
+        if (!checkoutResult.success) {
+          console.error(`[Open Terminal] Checkout failed: ${checkoutResult.error}`);
+          return NextResponse.json(
+            { error: `Branch checkout failed: ${checkoutResult.error}` },
+            { status: 500 }
+          );
+        }
+      }
+    }
+  }
 
   try {
     // Update card status in database BEFORE opening terminal
@@ -226,6 +285,7 @@ export async function POST(
         newStatus,
         workingDir,
         terminal,
+        gitBranchName,
         message: "Ghostty opened. Command copied to clipboard - press Cmd+V to paste.",
       });
     }
@@ -266,6 +326,7 @@ end tell`;
       newStatus,
       workingDir,
       terminal,
+      gitBranchName,
     });
   } catch (error) {
     console.error("Open terminal error:", error);
