@@ -34,5 +34,8 @@ Thumbs.db
 # Database
 data/*.db
 
+# Backups
+backups/
+
 # Misc
 *.log

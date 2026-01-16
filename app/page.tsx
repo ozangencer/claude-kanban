@@ -6,6 +6,7 @@ import { KanbanBoard } from "@/components/board/kanban-board";
 import { CardModal } from "@/components/board/card-modal";
 import { DocumentEditor } from "@/components/editor/document-editor";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BackupMenu } from "@/components/backup-menu";
 import { useKanbanStore } from "@/lib/store";
 import { useKeyboardShortcuts } from "@/lib/use-keyboard-shortcuts";
 import { Input } from "@/components/ui/input";
@@ -117,6 +118,9 @@ export default function Home() {
 
               {/* Theme Toggle */}
               <ThemeToggle />
+
+              {/* Backup Menu */}
+              <BackupMenu />
             </div>
           </div>
         </header>
