@@ -1,7 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { Card as CardType, Status, STATUS_COLORS, RETENTION_OPTIONS, CompletedRetention } from "@/lib/types";
+import { Card as CardType, Status, STATUS_COLORS, COMPLETED_FILTER_OPTIONS, CompletedFilter } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
 import { TaskCard } from "./card";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -20,7 +20,7 @@ interface ColumnProps {
 }
 
 export function Column({ id, title, cards }: ColumnProps) {
-  const { addCardAndOpen, activeProjectId, projects, collapsedColumns, toggleColumnCollapse, completedRetention, setCompletedRetention } = useKanbanStore();
+  const { addCardAndOpen, activeProjectId, projects, collapsedColumns, toggleColumnCollapse, completedFilter, setCompletedFilter } = useKanbanStore();
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const isCollapsed = collapsedColumns.includes(id);
@@ -100,8 +100,8 @@ export function Column({ id, title, cards }: ColumnProps) {
           </span>
           {id === "completed" && (
             <Select
-              value={completedRetention}
-              onValueChange={(value) => setCompletedRetention(value as CompletedRetention)}
+              value={completedFilter}
+              onValueChange={(value) => setCompletedFilter(value as CompletedFilter)}
             >
               <SelectTrigger
                 className="h-6 w-auto min-w-0 text-xs bg-muted border-none px-2 py-0.5 gap-1 flex-shrink-0"
@@ -110,7 +110,7 @@ export function Column({ id, title, cards }: ColumnProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {RETENTION_OPTIONS.map((option) => (
+                {COMPLETED_FILTER_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value} className="text-xs">
                     {option.label}
                   </SelectItem>

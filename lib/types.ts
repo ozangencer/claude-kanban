@@ -106,15 +106,13 @@ export const TERMINAL_OPTIONS: { value: TerminalApp; label: string }[] = [
   { value: "terminal", label: "Terminal.app" },
 ];
 
-// Completed column retention filter
-export type CompletedRetention = 'all' | 'week' | '2weeks' | 'month' | '3months';
+// Completed column filter
+export type CompletedFilter = 'today' | 'yesterday' | 'this_week';
 
-export const RETENTION_OPTIONS: { value: CompletedRetention; label: string }[] = [
-  { value: 'all', label: 'All time' },
-  { value: 'week', label: 'Past week' },
-  { value: '2weeks', label: 'Past 2 weeks' },
-  { value: 'month', label: 'Past month' },
-  { value: '3months', label: 'Past 3 months' },
+export const COMPLETED_FILTER_OPTIONS: { value: CompletedFilter; label: string }[] = [
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'this_week', label: 'This Week' },
 ];
 
 // Complexity & Priority options

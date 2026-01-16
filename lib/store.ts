@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Card, Status, Project, DocumentFile, AppSettings, CompletedRetention } from "./types";
+import { Card, Status, Project, DocumentFile, AppSettings, CompletedFilter } from "./types";
 
 interface KanbanStore {
   // Cards state
@@ -27,8 +27,8 @@ interface KanbanStore {
   // Column collapse state
   collapsedColumns: Status[];
 
-  // Completed column retention filter
-  completedRetention: CompletedRetention;
+  // Completed column filter
+  completedFilter: CompletedFilter;
 
   // Skills & MCPs state
   skills: string[];
@@ -84,8 +84,8 @@ interface KanbanStore {
   // Column collapse actions
   toggleColumnCollapse: (columnId: Status) => void;
 
-  // Completed retention actions
-  setCompletedRetention: (retention: CompletedRetention) => void;
+  // Completed filter actions
+  setCompletedFilter: (filter: CompletedFilter) => void;
 
   // Skills & MCPs actions
   fetchSkills: () => Promise<void>;
@@ -132,8 +132,8 @@ export const useKanbanStore = create<KanbanStore>()(
   // Column collapse initial state
   collapsedColumns: [],
 
-  // Completed retention initial state
-  completedRetention: 'all',
+  // Completed filter initial state (default: this_week)
+  completedFilter: 'this_week',
 
   // Skills & MCPs initial state
   skills: [],
@@ -426,8 +426,8 @@ export const useKanbanStore = create<KanbanStore>()(
         : [...state.collapsedColumns, columnId],
     })),
 
-  // Completed retention actions
-  setCompletedRetention: (retention) => set({ completedRetention: retention }),
+  // Completed filter actions
+  setCompletedFilter: (filter) => set({ completedFilter: filter }),
 
   // Skills & MCPs actions
   fetchSkills: async () => {
@@ -784,7 +784,7 @@ export const useKanbanStore = create<KanbanStore>()(
       partialize: (state) => ({
         collapsedColumns: state.collapsedColumns,
         isSidebarCollapsed: state.isSidebarCollapsed,
-        completedRetention: state.completedRetention,
+        completedFilter: state.completedFilter,
       }),
     }
   )

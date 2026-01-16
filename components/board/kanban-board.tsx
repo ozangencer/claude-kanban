@@ -13,7 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { useState } from "react";
 import { useKanbanStore } from "@/lib/store";
-import { COLUMNS, Card, Status, Priority, Complexity, CompletedRetention } from "@/lib/types";
+import { COLUMNS, Card, Status, Priority, Complexity, CompletedFilter } from "@/lib/types";
 
 // Priority order: high > medium > low (descending)
 const PRIORITY_ORDER: Record<Priority, number> = {
@@ -29,32 +29,27 @@ const COMPLEXITY_ORDER: Record<Complexity, number> = {
   high: 3,
 };
 
-// Filter completed cards by retention setting
-function filterByRetention(cards: Card[], retention: CompletedRetention): Card[] {
-  if (retention === 'all') return cards;
-
+// Filter completed cards by date filter
+function filterByCompletedDate(cards: Card[], filter: CompletedFilter): Card[] {
   const now = new Date();
-  const cutoff = new Date();
-
-  switch (retention) {
-    case 'week':
-      cutoff.setDate(now.getDate() - 7);
-      break;
-    case '2weeks':
-      cutoff.setDate(now.getDate() - 14);
-      break;
-    case 'month':
-      cutoff.setMonth(now.getMonth() - 1);
-      break;
-    case '3months':
-      cutoff.setMonth(now.getMonth() - 3);
-      break;
-  }
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+  const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   return cards.filter(card => {
     // Use completedAt if available, otherwise fall back to updatedAt for legacy cards
     const dateToCheck = card.completedAt || card.updatedAt;
-    return new Date(dateToCheck) >= cutoff;
+    const cardDate = new Date(dateToCheck);
+    const cardDateOnly = new Date(cardDate.getFullYear(), cardDate.getMonth(), cardDate.getDate());
+
+    switch (filter) {
+      case 'today':
+        return cardDateOnly.getTime() === today.getTime();
+      case 'yesterday':
+        return cardDateOnly.getTime() === yesterday.getTime();
+      case 'this_week':
+        return cardDate >= weekAgo;
+    }
   });
 }
 
@@ -76,7 +71,7 @@ import { Column } from "./column";
 import { TaskCard } from "./card";
 
 export function KanbanBoard() {
-  const { cards, activeProjectId, searchQuery, moveCard, completedRetention } = useKanbanStore();
+  const { cards, activeProjectId, searchQuery, moveCard, completedFilter } = useKanbanStore();
   const [activeCard, setActiveCard] = useState<Card | null>(null);
 
   const sensors = useSensors(
@@ -141,9 +136,9 @@ export function KanbanBoard() {
       <div className="flex gap-4 p-6 overflow-x-auto min-h-[calc(100vh-80px)]">
         {COLUMNS.map((column) => {
           let columnCards = filteredCards.filter((card) => card.status === column.id);
-          // Apply retention filter only to completed column
+          // Apply date filter only to completed column
           if (column.id === 'completed') {
-            columnCards = filterByRetention(columnCards, completedRetention);
+            columnCards = filterByCompletedDate(columnCards, completedFilter);
           }
           return (
             <Column
