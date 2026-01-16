@@ -96,6 +96,13 @@ interface TaskCardProps {
 type Phase = "planning" | "implementation" | "retest";
 
 function detectPhase(card: Card): Phase {
+  // In Progress sütunundaki kartlar için direkt implementation
+  if (card.status === "progress") {
+    const hasTests = card.testScenarios && stripHtml(card.testScenarios) !== "";
+    return hasTests ? "retest" : "implementation";
+  }
+
+  // Diğer sütunlar için mevcut mantık
   const hasSolution = card.solutionSummary && stripHtml(card.solutionSummary) !== "";
   const hasTests = card.testScenarios && stripHtml(card.testScenarios) !== "";
 
@@ -130,6 +137,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
   const [showQuickFixConfirm, setShowQuickFixConfirm] = useState(false);
   const [showTerminalConfirm, setShowTerminalConfirm] = useState(false);
   const [showIdeationConfirm, setShowIdeationConfirm] = useState(false);
+  const [showAutonomousConfirm, setShowAutonomousConfirm] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging: isBeingDragged } = useDraggable({
     id: card.id,
   });
@@ -166,8 +174,14 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
     unlockCard(card.id);
   };
 
-  const handleStart = async (e: React.MouseEvent) => {
+  const handleStartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isStarting || !canStart) return;
+    setShowAutonomousConfirm(true);
+  };
+
+  const handleStart = async () => {
+    setShowAutonomousConfirm(false);
     if (isStarting || !canStart) return;
 
     const result = await startTask(card.id);
@@ -413,7 +427,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
-                          onClick={handleStart}
+                          onClick={handleStartClick}
                           disabled={isStarting}
                           className={`p-1 rounded transition-colors ${
                             isStarting
@@ -429,7 +443,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top">
-                        {isStarting ? "Running Claude..." : phaseLabels.play}
+                        {isStarting ? "Running..." : phaseLabels.play}
                       </TooltipContent>
                     </Tooltip>
                   </>
@@ -532,7 +546,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
             <AlertDialogDescription>
               Are you sure you want to start this card in quick-fix mode?
               <br /><br />
-              <strong>Warning:</strong> No plan will be written and Claude will work with full file access.
+              <strong>Warning:</strong> No plan will be written. This runs in autonomous mode with full file access.
               After the bug fix is completed, the card will automatically be moved to the Human Test column.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -583,6 +597,41 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
               className="bg-cyan-500 hover:bg-cyan-600"
             >
               Start Discussion
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showAutonomousConfirm} onOpenChange={setShowAutonomousConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start {phaseLabels.play}?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>This will run in autonomous mode with full file access.</p>
+                {phase === "planning" && (
+                  <p className="text-muted-foreground">
+                    The task will be analyzed and a solution plan will be written.
+                  </p>
+                )}
+                {phase === "implementation" && (
+                  <p className="text-amber-500">
+                    Files in your project may be modified.
+                    A git branch will be created automatically.
+                  </p>
+                )}
+                {phase === "retest" && (
+                  <p className="text-muted-foreground">
+                    Tests will be re-run and any issues will be fixed.
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleStart}>
+              Start
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
