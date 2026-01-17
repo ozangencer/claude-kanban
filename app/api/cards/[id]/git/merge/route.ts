@@ -349,6 +349,9 @@ export async function POST(
         // Clear dev server info
         devServerPort: null,
         devServerPid: null,
+        // Clear conflict info
+        rebaseConflict: null,
+        conflictFiles: null,
         updatedAt,
         completedAt,
       })
