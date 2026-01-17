@@ -38,7 +38,7 @@ interface KanbanStore {
   // Claude integration state
   startingCardId: string | null;
   quickFixingCardId: string | null;
-  evaluatingCardId: string | null;
+  evaluatingCardIds: string[];
   lockedCardIds: string[];
 
   // Settings state
@@ -153,7 +153,7 @@ export const useKanbanStore = create<KanbanStore>()(
   // Claude integration initial state
   startingCardId: null,
   quickFixingCardId: null,
-  evaluatingCardId: null,
+  evaluatingCardIds: [],
   lockedCardIds: [],
 
   // Settings initial state
@@ -734,7 +734,9 @@ export const useKanbanStore = create<KanbanStore>()(
 
   evaluateIdea: async (cardId) => {
     set((state) => ({
-      evaluatingCardId: cardId,
+      evaluatingCardIds: state.evaluatingCardIds.includes(cardId)
+        ? state.evaluatingCardIds
+        : [...state.evaluatingCardIds, cardId],
       lockedCardIds: state.lockedCardIds.includes(cardId)
         ? state.lockedCardIds
         : [...state.lockedCardIds, cardId],
@@ -749,7 +751,7 @@ export const useKanbanStore = create<KanbanStore>()(
 
       if (!response.ok) {
         set((state) => ({
-          evaluatingCardId: null,
+          evaluatingCardIds: state.evaluatingCardIds.filter((id) => id !== cardId),
           lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
         }));
         return { success: false, error: data.error || "Failed to evaluate idea" };
@@ -777,7 +779,7 @@ export const useKanbanStore = create<KanbanStore>()(
 
           return { ...card, ...updates };
         }),
-        evaluatingCardId: null,
+        evaluatingCardIds: state.evaluatingCardIds.filter((id) => id !== cardId),
         lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
       }));
 
@@ -785,7 +787,7 @@ export const useKanbanStore = create<KanbanStore>()(
     } catch (error) {
       console.error("Failed to evaluate idea:", error);
       set((state) => ({
-        evaluatingCardId: null,
+        evaluatingCardIds: state.evaluatingCardIds.filter((id) => id !== cardId),
         lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
       }));
       return {
