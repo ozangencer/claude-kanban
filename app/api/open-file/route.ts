@@ -6,14 +6,16 @@ const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    const { path } = await request.json();
+    const { path, action = "open" } = await request.json();
 
     if (!path) {
       return NextResponse.json({ error: "Path is required" }, { status: 400 });
     }
 
-    // Use 'open' command on macOS to open file with default application
-    await execAsync(`open "${path}"`);
+    // Use 'open' command on macOS
+    // -R flag reveals the file in Finder instead of opening it
+    const command = action === "reveal" ? `open -R "${path}"` : `open "${path}"`;
+    await execAsync(command);
 
     return NextResponse.json({ success: true });
   } catch (error) {

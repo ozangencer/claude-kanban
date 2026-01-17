@@ -5,7 +5,7 @@ import { useKanbanStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { X, FileText, ExternalLink } from "lucide-react";
+import { X, FileText, ExternalLink, FolderOpen } from "lucide-react";
 
 export function DocumentEditor() {
   const {
@@ -16,6 +16,7 @@ export function DocumentEditor() {
   } = useKanbanStore();
 
   const [isOpening, setIsOpening] = useState(false);
+  const [isRevealing, setIsRevealing] = useState(false);
 
   const handleClose = () => {
     closeDocumentEditor();
@@ -49,6 +50,24 @@ export function DocumentEditor() {
     }
   };
 
+  const handleRevealInFinder = async () => {
+    if (!selectedDocument) return;
+
+    setIsRevealing(true);
+    try {
+      await fetch("/api/open-file", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: selectedDocument.path, action: "reveal" }),
+      });
+      // Don't close the panel - user may want to continue viewing
+    } catch (error) {
+      console.error("Failed to reveal file:", error);
+    } finally {
+      setIsRevealing(false);
+    }
+  };
+
   if (!isDocumentEditorOpen || !selectedDocument) return null;
 
   return (
@@ -75,6 +94,15 @@ export function DocumentEditor() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRevealInFinder}
+              disabled={isRevealing}
+            >
+              <FolderOpen className="h-4 w-4 mr-2" />
+              {isRevealing ? "Opening..." : "Show in Finder"}
+            </Button>
             <Button
               variant="outline"
               size="sm"
