@@ -90,6 +90,80 @@ export async function POST(
   const commitMessage = `feat(${displayId}): ${card.title}\n\nSquash merge from branch: ${card.gitBranchName}`;
 
   try {
+    // Step 0: Check if there's an ongoing rebase conflict in worktree
+    if (card.gitWorktreePath && existsSync(card.gitWorktreePath)) {
+      // For worktrees, .git is a file pointing to the actual git directory
+      let gitDir = `${card.gitWorktreePath}/.git`;
+      const gitFile = `${card.gitWorktreePath}/.git`;
+      if (existsSync(gitFile)) {
+        try {
+          const { stdout: gitDirContent } = await execAsync(`cat "${gitFile}"`, { cwd: card.gitWorktreePath });
+          const match = gitDirContent.match(/gitdir:\s*(.+)/);
+          if (match) {
+            gitDir = match[1].trim();
+          }
+        } catch {
+          // Use default
+        }
+      }
+
+      const rebaseInProgress = existsSync(`${gitDir}/rebase-merge`) ||
+                               existsSync(`${gitDir}/rebase-apply`);
+
+      if (rebaseInProgress) {
+        console.log(`[Merge] Ongoing rebase detected in worktree`);
+
+        // Get conflict files
+        let conflictFiles: string[] = [];
+        try {
+          const { stdout: conflictOutput } = await execAsync(
+            'git diff --name-only --diff-filter=U',
+            { cwd: card.gitWorktreePath }
+          );
+          conflictFiles = conflictOutput.trim().split('\n').filter(f => f);
+        } catch {
+          // Try alternative method
+          try {
+            const { stdout: statusOutput } = await execAsync(
+              'git status --porcelain',
+              { cwd: card.gitWorktreePath }
+            );
+            conflictFiles = statusOutput
+              .split('\n')
+              .filter(line => line.startsWith('UU ') || line.startsWith('AA ') || line.startsWith('DD '))
+              .map(line => line.substring(3));
+          } catch {
+            // Ignore
+          }
+        }
+
+        // Update card with conflict status if not already set
+        if (!card.rebaseConflict) {
+          db.update(schema.cards)
+            .set({
+              rebaseConflict: true,
+              conflictFiles: JSON.stringify(conflictFiles),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(schema.cards.id, id))
+            .run();
+        }
+
+        return NextResponse.json(
+          {
+            error: "Rebase conflict detected",
+            rebaseConflict: true,
+            conflictFiles,
+            worktreePath: card.gitWorktreePath,
+            branchName: card.gitBranchName,
+            cardId: id,
+            displayId,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // Step 1: Check for uncommitted changes in worktree (block merge if found)
     if (card.gitWorktreePath && existsSync(card.gitWorktreePath)) {
       console.log(`[Merge] Checking for uncommitted changes in worktree: ${card.gitWorktreePath}`);
