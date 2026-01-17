@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, COLUMNS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare, FileDown, FolderGit2, MonitorPlay, MonitorStop, AlertTriangle } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare, FileDown, FolderGit2, MonitorPlay, MonitorStop, AlertTriangle, Check } from "lucide-react";
 import { downloadCardAsMarkdown } from "@/lib/card-export";
 import {
   ContextMenu,
@@ -132,7 +132,7 @@ function getPhaseLabels(phase: Phase): { play: string; terminal: string } {
 }
 
 export function TaskCard({ card, isDragging = false }: TaskCardProps) {
-  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, openIdeationTerminal, moveCard, deleteCard, quickFixTask, quickFixingCardId, evaluateIdea, evaluatingCardId, lockedCardIds, unlockCard, settings, startDevServer, stopDevServer } = useKanbanStore();
+  const { selectCard, openModal, projects, startTask, startingCardId, openTerminal, openIdeationTerminal, moveCard, deleteCard, quickFixTask, quickFixingCardId, evaluateIdea, evaluatingCardIds, lockedCardIds, unlockCard, settings, startDevServer, stopDevServer } = useKanbanStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showQuickFixConfirm, setShowQuickFixConfirm] = useState(false);
   const [showTerminalConfirm, setShowTerminalConfirm] = useState(false);
@@ -145,7 +145,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
 
   const isStarting = startingCardId === card.id;
   const isQuickFixing = quickFixingCardId === card.id;
-  const isEvaluating = evaluatingCardId === card.id;
+  const isEvaluating = evaluatingCardIds.includes(card.id);
   const isLocked = lockedCardIds.includes(card.id);
   // Background processing = auto unlock when done, no manual unlock needed
   const isBackgroundProcessing = isStarting || isQuickFixing || isEvaluating;
@@ -432,7 +432,14 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                         {isEvaluating ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
-                          <Brain className="w-3.5 h-3.5" />
+                          <div className="relative">
+                            <Brain className="w-3.5 h-3.5" />
+                            {hasAiOpinion && (
+                              <span className="absolute -bottom-1 -right-1 flex items-center justify-center w-2.5 h-2.5 rounded-full bg-green-500">
+                                <Check className="w-1.5 h-1.5 text-white" strokeWidth={4} />
+                              </span>
+                            )}
+                          </div>
                         )}
                       </button>
                     </TooltipTrigger>
