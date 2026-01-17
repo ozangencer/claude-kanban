@@ -156,6 +156,12 @@ export async function POST(
   console.log(`[Evaluate] Working dir: ${workingDir}`);
   console.log(`[Evaluate] Narrative path: ${narrativePath || 'default (docs/product-narrative.md)'}`);
 
+  // Mark card as processing (persists through page refresh)
+  db.update(schema.cards)
+    .set({ processingType: "evaluate" })
+    .where(eq(schema.cards.id, id))
+    .run();
+
   try {
     const prompt = buildEvaluatePrompt(card, narrativePath);
     const escapedPrompt = escapeShellArg(prompt);
@@ -226,8 +232,9 @@ export async function POST(
       console.log(`[Evaluate] Updating complexity to: ${complexity}`);
     }
 
+    // Clear processing flag on success
     db.update(schema.cards)
-      .set(updates)
+      .set({ ...updates, processingType: null })
       .where(eq(schema.cards.id, id))
       .run();
 
@@ -242,6 +249,11 @@ export async function POST(
     });
   } catch (error) {
     console.error("Evaluate error:", error);
+    // Clear processing flag on error
+    db.update(schema.cards)
+      .set({ processingType: null })
+      .where(eq(schema.cards.id, id))
+      .run();
     return NextResponse.json(
       {
         error: "Failed to evaluate idea",

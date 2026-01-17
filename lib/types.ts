@@ -10,6 +10,7 @@ export type Complexity = "low" | "medium" | "high";
 export type Priority = "low" | "medium" | "high";
 export type GitBranchStatus = "active" | "merged" | "rolled_back" | null;
 export type GitWorktreeStatus = "active" | "removed" | null;
+export type ProcessingType = "autonomous" | "quick-fix" | "evaluate" | null;
 
 export interface Card {
   id: string;
@@ -32,6 +33,7 @@ export interface Card {
   devServerPid: number | null;
   rebaseConflict: boolean | null;
   conflictFiles: string[] | null;
+  processingType: ProcessingType;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;

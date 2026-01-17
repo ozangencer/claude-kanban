@@ -117,6 +117,12 @@ export async function POST(
   console.log(`[Quick Fix] Starting quick fix for card ${id}`);
   console.log(`[Quick Fix] Working dir: ${workingDir}`);
 
+  // Mark card as processing (persists through page refresh)
+  db.update(schema.cards)
+    .set({ processingType: "quick-fix" })
+    .where(eq(schema.cards.id, id))
+    .run();
+
   try {
     const prompt = buildQuickFixPrompt(card);
     const escapedPrompt = escapeShellArg(prompt);
@@ -198,7 +204,7 @@ export async function POST(
       // Commit fail olsa bile devam et - quick fix başarılı
     }
 
-    // Update database - move to test status
+    // Update database - move to test status, clear processing flag
     const updatedAt = new Date().toISOString();
     const newStatus: Status = "test";
 
@@ -208,6 +214,7 @@ export async function POST(
         solutionSummary,
         testScenarios,
         updatedAt,
+        processingType: null,
       })
       .where(eq(schema.cards.id, id))
       .run();
@@ -223,6 +230,11 @@ export async function POST(
     });
   } catch (error) {
     console.error("Quick Fix error:", error);
+    // Clear processing flag on error
+    db.update(schema.cards)
+      .set({ processingType: null })
+      .where(eq(schema.cards.id, id))
+      .run();
     return NextResponse.json(
       {
         error: "Failed to run quick fix",

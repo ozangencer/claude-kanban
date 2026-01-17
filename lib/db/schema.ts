@@ -40,6 +40,7 @@ export const cards = sqliteTable("cards", {
   devServerPid: integer("dev_server_pid"),    // Process ID or null
   rebaseConflict: integer("rebase_conflict", { mode: "boolean" }), // true if conflict detected during merge
   conflictFiles: text("conflict_files"),      // JSON array of conflicting file paths
+  processingType: text("processing_type"),    // "autonomous" | "quick-fix" | "evaluate" | null (active Claude process indicator)
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
   completedAt: text("completed_at"),  // ISO date string, null if not completed
@@ -57,3 +58,17 @@ export const settings = sqliteTable("settings", {
 
 export type SettingRecord = typeof settings.$inferSelect;
 export type NewSetting = typeof settings.$inferInsert;
+
+// Background tasks tablosu - Claude Code background process tracking
+export const backgroundTasks = sqliteTable("background_tasks", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").notNull(),        // Claude Code task ID
+  pid: integer("pid"),                       // Process ID (if available)
+  description: text("description").notNull(), // What the task is doing
+  status: text("status").notNull().default("running"), // running, completed, failed
+  startedAt: text("started_at").notNull(),
+  completedAt: text("completed_at"),
+});
+
+export type BackgroundTaskRecord = typeof backgroundTasks.$inferSelect;
+export type NewBackgroundTask = typeof backgroundTasks.$inferInsert;

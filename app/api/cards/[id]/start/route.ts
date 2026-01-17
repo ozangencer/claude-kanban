@@ -174,6 +174,12 @@ export async function POST(
   console.log(`[Claude CLI] Phase: ${phase}`);
   console.log(`[Claude CLI] Current status: ${card.status} → New status: ${newStatus}`);
 
+  // Mark card as processing (persists through page refresh)
+  db.update(schema.cards)
+    .set({ processingType: "autonomous" })
+    .where(eq(schema.cards.id, id))
+    .run();
+
   // Handle git branch and worktree for implementation phase
   let gitBranchName = card.gitBranchName;
   let gitBranchStatus = card.gitBranchStatus;
@@ -275,6 +281,9 @@ export async function POST(
       gitWorktreeStatus,
     };
 
+    // Clear processing flag on success
+    updates.processingType = null;
+
     switch (phase) {
       case "planning":
         updates.solutionSummary = htmlResponse;
@@ -314,6 +323,11 @@ export async function POST(
     });
   } catch (error) {
     console.error("Claude CLI error:", error);
+    // Clear processing flag on error
+    db.update(schema.cards)
+      .set({ processingType: null })
+      .where(eq(schema.cards.id, id))
+      .run();
     return NextResponse.json(
       {
         error: "Failed to run Claude CLI",

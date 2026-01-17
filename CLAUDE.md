@@ -269,6 +269,14 @@ Claude Kanban projesi üzerinde çalışırken aşağıdaki workflow'u takip et:
 | `mcp__kanban__move_card`   | Kartı farklı bir sütuna taşı                         |
 | `mcp__kanban__update_card` | Kart bilgilerini güncelle                            |
 
+#### Background Task Management
+
+| Tool                                    | Açıklama                                           |
+| --------------------------------------- | -------------------------------------------------- |
+| `mcp__kanban__register_background_task` | Background task başlatınca kaydet                  |
+| `mcp__kanban__list_background_tasks`    | Aktif background task'ları listele                 |
+| `mcp__kanban__cleanup_background_tasks` | Orphan process'leri temizle, tracking'i güncelle   |
+
 ### Workflow Kuralları
 
 1. **Plan Onaylandığında:**
@@ -284,10 +292,25 @@ Claude Kanban projesi üzerinde çalışırken aşağıdaki workflow'u takip et:
    - Bu otomatik olarak kartı "Human Test" sütununa taşır
 
 3. **Markdown Formatı:**
-   
+
    - `save_plan` ve `save_tests` markdown formatında içerik bekler
    - Checkbox'lar için `- [ ]` veya `- [x]` formatını kullan
    - MCP server otomatik olarak Tiptap-uyumlu HTML'e çevirir
+
+4. **Background Task Yönetimi (ÖNEMLİ):**
+
+   Background agent'lar (run_in_background: true) orphan process olarak kalabilir. Bunu önlemek için:
+
+   - **Yeni background task başlatmadan ÖNCE:** `mcp__kanban__cleanup_background_tasks` çağır
+   - **Background task başlattıktan SONRA:** `mcp__kanban__register_background_task` ile kaydet
+   - **Session başında:** `mcp__kanban__list_background_tasks` ile durumu kontrol et
+
+   ```
+   # Örnek: Background agent başlatma
+   1. mcp__kanban__cleanup_background_tasks()  # Önce temizle
+   2. Task tool ile agent başlat (run_in_background: true)
+   3. mcp__kanban__register_background_task({ taskId: "...", description: "..." })
+   ```
 
 ### Örnek Kullanım
 
@@ -330,5 +353,5 @@ mcp__kanban__save_tests({
 
 ---
 
-**Son Güncelleme:** 2026-01-12
-**Versiyon:** 0.3.0
+**Son Güncelleme:** 2026-01-17
+**Versiyon:** 0.3.1

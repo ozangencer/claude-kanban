@@ -143,10 +143,11 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
     id: card.id,
   });
 
-  const isStarting = startingCardId === card.id;
-  const isQuickFixing = quickFixingCardId === card.id;
-  const isEvaluating = evaluatingCardIds.includes(card.id);
-  const isLocked = lockedCardIds.includes(card.id);
+  // Check both local state AND persisted processingType from database
+  const isStarting = startingCardId === card.id || card.processingType === "autonomous";
+  const isQuickFixing = quickFixingCardId === card.id || card.processingType === "quick-fix";
+  const isEvaluating = evaluatingCardIds.includes(card.id) || card.processingType === "evaluate";
+  const isLocked = lockedCardIds.includes(card.id) || !!card.processingType;
   // Background processing = auto unlock when done, no manual unlock needed
   const isBackgroundProcessing = isStarting || isQuickFixing || isEvaluating;
   const canStart = !!(card.description && (card.projectId || card.projectFolder) && card.status !== "completed" && card.status !== "test" && card.status !== "ideation");

@@ -458,6 +458,9 @@ export function CardModal() {
           gitWorktreeStatus: null,
           devServerPort: null,
           devServerPid: null,
+          rebaseConflict: null,
+          conflictFiles: null,
+          processingType: null,
         });
       } else {
         // Update existing card

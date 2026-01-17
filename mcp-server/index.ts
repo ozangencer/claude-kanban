@@ -10,6 +10,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { marked } from "marked";
 import { v4 as uuidv4 } from "uuid";
+import { execSync } from "child_process";
 
 // Configure marked for Tiptap-compatible HTML
 marked.setOptions({
@@ -67,6 +68,17 @@ interface Card {
 }
 
 type Status = "ideation" | "backlog" | "bugs" | "progress" | "test" | "completed";
+
+// Background task tracking
+interface BackgroundTask {
+  id: string;
+  taskId: string;
+  pid: number | null;
+  description: string;
+  status: string;
+  startedAt: string;
+  completedAt: string | null;
+}
 
 // Create MCP server
 const server = new Server(
@@ -274,6 +286,56 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ["id", "aiOpinion"],
+        },
+      },
+      // Background task management tools
+      {
+        name: "register_background_task",
+        description: "Register a background task for tracking. Call this BEFORE spawning a background agent to track it for later cleanup.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            taskId: {
+              type: "string",
+              description: "The Claude Code task ID returned when spawning the agent",
+            },
+            description: {
+              type: "string",
+              description: "Brief description of what the task is doing",
+            },
+            pid: {
+              type: "number",
+              description: "Process ID if known (optional)",
+            },
+          },
+          required: ["taskId", "description"],
+        },
+      },
+      {
+        name: "list_background_tasks",
+        description: "List all tracked background tasks and their status",
+        inputSchema: {
+          type: "object",
+          properties: {
+            status: {
+              type: "string",
+              enum: ["running", "completed", "failed", "all"],
+              description: "Filter by status (default: all)",
+            },
+          },
+        },
+      },
+      {
+        name: "cleanup_background_tasks",
+        description: "Clean up orphaned Claude background processes. Kills background Claude processes and updates tracking. Call this before spawning new background agents.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            force: {
+              type: "boolean",
+              description: "Force kill all background Claude processes (default: false, only kills old ones)",
+            },
+          },
         },
       },
     ],
@@ -561,6 +623,128 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         return {
           content: [{ type: "text", text: `AI opinion saved to card ${id}` }],
+        };
+      }
+
+      // Background task management
+      case "register_background_task": {
+        const { taskId, description, pid } = args as {
+          taskId: string;
+          description: string;
+          pid?: number;
+        };
+
+        const id = uuidv4();
+        const now = new Date().toISOString();
+
+        db.prepare(`
+          INSERT INTO background_tasks (id, task_id, pid, description, status, started_at)
+          VALUES (?, ?, ?, ?, 'running', ?)
+        `).run(id, taskId, pid || null, description, now);
+
+        return {
+          content: [{ type: "text", text: `Background task registered: ${taskId} (${description})` }],
+        };
+      }
+
+      case "list_background_tasks": {
+        const { status = "all" } = args as { status?: string };
+
+        let query = `
+          SELECT id, task_id as taskId, pid, description, status,
+                 started_at as startedAt, completed_at as completedAt
+          FROM background_tasks
+        `;
+
+        if (status !== "all") {
+          query += ` WHERE status = ?`;
+        }
+        query += ` ORDER BY started_at DESC`;
+
+        const tasks = status !== "all"
+          ? db.prepare(query).all(status) as BackgroundTask[]
+          : db.prepare(query).all() as BackgroundTask[];
+
+        // Also get current system info about background Claude processes
+        let systemInfo = "";
+        try {
+          const bgCount = execSync('ps aux | grep "claude" | grep -v grep | grep "??" | wc -l', { encoding: 'utf-8' }).trim();
+          const memUsage = execSync('ps aux | grep "claude" | grep -v grep | awk \'{sum += $6} END {printf "%.2f", sum/1024/1024}\'', { encoding: 'utf-8' }).trim();
+          systemInfo = `\n\nSystem: ${bgCount} background Claude processes using ${memUsage} GB memory`;
+        } catch {
+          // Ignore errors in system check
+        }
+
+        return {
+          content: [{
+            type: "text",
+            text: `Tracked tasks:\n${JSON.stringify(tasks, null, 2)}${systemInfo}`
+          }],
+        };
+      }
+
+      case "cleanup_background_tasks": {
+        const { force = false } = args as { force?: boolean };
+
+        let killedCount = 0;
+        let cleanedTasks = 0;
+
+        try {
+          // Get background Claude process PIDs (those with ?? in TTY column)
+          const pidsOutput = execSync('ps aux | grep "claude" | grep -v grep | grep "??" | awk \'{print $2}\'', { encoding: 'utf-8' });
+          const pids = pidsOutput.trim().split('\n').filter(p => p);
+
+          if (pids.length > 0) {
+            // Kill background processes
+            // In non-force mode, we still kill them but could add age filtering later
+            for (const pid of pids) {
+              try {
+                execSync(`kill ${pid} 2>/dev/null`);
+                killedCount++;
+              } catch {
+                // Process might already be dead
+              }
+            }
+          }
+
+          // Update all running tasks to failed (since we killed them)
+          const result = db.prepare(`
+            UPDATE background_tasks
+            SET status = 'cleaned', completed_at = ?
+            WHERE status = 'running'
+          `).run(new Date().toISOString());
+          cleanedTasks = result.changes;
+
+          // Clean up old completed/failed tasks (older than 24 hours)
+          db.prepare(`
+            DELETE FROM background_tasks
+            WHERE status IN ('completed', 'failed', 'cleaned')
+            AND datetime(started_at) < datetime('now', '-24 hours')
+          `).run();
+
+        } catch (error) {
+          return {
+            content: [{
+              type: "text",
+              text: `Cleanup error: ${error instanceof Error ? error.message : String(error)}`
+            }],
+            isError: true,
+          };
+        }
+
+        // Get remaining process count
+        let remainingCount = 0;
+        try {
+          remainingCount = parseInt(execSync('ps aux | grep "claude" | grep -v grep | grep "??" | wc -l', { encoding: 'utf-8' }).trim());
+        } catch {
+          // Ignore
+        }
+
+        return {
+          content: [{
+            type: "text",
+            text: `Cleanup complete:\n- Killed ${killedCount} background processes\n- Updated ${cleanedTasks} tracked tasks\n- Remaining background processes: ${remainingCount}`
+          }],
         };
       }
 

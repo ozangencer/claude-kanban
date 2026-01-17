@@ -117,6 +117,7 @@ export async function PUT(
     devServerPid: existing.devServerPid,
     rebaseConflict: existing.rebaseConflict ?? null,
     conflictFiles: existing.conflictFiles ? JSON.parse(existing.conflictFiles) : null,
+    processingType: (existing.processingType as Card["processingType"]) ?? null,
     createdAt: existing.createdAt,
     updatedAt: updatedCard.updatedAt,
     completedAt: updatedCard.completedAt,
