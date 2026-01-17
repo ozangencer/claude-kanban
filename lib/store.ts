@@ -6,6 +6,7 @@ interface KanbanStore {
   // Cards state
   cards: Card[];
   selectedCard: Card | null;
+  draftCard: Card | null;
   isModalOpen: boolean;
   searchQuery: string;
   isLoading: boolean;
@@ -53,6 +54,11 @@ interface KanbanStore {
   addCardAndOpen: (
     card: Omit<Card, "id" | "createdAt" | "updatedAt" | "taskNumber" | "completedAt">
   ) => Promise<void>;
+  openNewCardModal: (status: Status, projectId: string | null) => void;
+  saveDraftCard: (
+    cardData: Omit<Card, "id" | "createdAt" | "updatedAt" | "taskNumber" | "completedAt">
+  ) => Promise<void>;
+  discardDraft: () => void;
   updateCard: (id: string, updates: Partial<Card>) => Promise<void>;
   deleteCard: (id: string) => Promise<void>;
   moveCard: (id: string, newStatus: Status) => Promise<void>;
@@ -100,6 +106,10 @@ interface KanbanStore {
   lockCard: (cardId: string) => void;
   unlockCard: (cardId: string) => void;
 
+  // Dev server actions
+  startDevServer: (cardId: string) => Promise<{ success: boolean; port?: number; error?: string }>;
+  stopDevServer: (cardId: string) => Promise<{ success: boolean; error?: string }>;
+
   // Settings actions
   fetchSettings: () => Promise<void>;
   updateSettings: (updates: Partial<AppSettings>) => Promise<void>;
@@ -111,6 +121,7 @@ export const useKanbanStore = create<KanbanStore>()(
   // Initial state
   cards: [],
   selectedCard: null,
+  draftCard: null,
   isModalOpen: false,
   searchQuery: "",
   isLoading: false,
@@ -195,6 +206,60 @@ export const useKanbanStore = create<KanbanStore>()(
       console.error("Failed to add card:", error);
     }
   },
+
+  openNewCardModal: (status, projectId) => {
+    const project = get().projects.find((p) => p.id === projectId);
+    const draft: Card = {
+      id: `draft-${Date.now()}`,
+      title: "",
+      description: "",
+      solutionSummary: "",
+      testScenarios: "",
+      aiOpinion: "",
+      status,
+      complexity: "medium",
+      priority: "medium",
+      projectFolder: project?.folderPath || "",
+      projectId,
+      taskNumber: null,
+      gitBranchName: null,
+      gitBranchStatus: null,
+      gitWorktreePath: null,
+      gitWorktreeStatus: null,
+      devServerPort: null,
+      devServerPid: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      completedAt: null,
+    };
+    set({ draftCard: draft, selectedCard: draft, isModalOpen: true });
+  },
+
+  saveDraftCard: async (cardData) => {
+    try {
+      const response = await fetch("/api/cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cardData),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create card");
+      }
+      const newCard = await response.json();
+      set((state) => ({
+        cards: [...state.cards, newCard],
+        draftCard: null,
+        selectedCard: null,
+        isModalOpen: false,
+      }));
+    } catch (error) {
+      console.error("Failed to create card:", error);
+      alert(error instanceof Error ? error.message : "Failed to create card");
+    }
+  },
+
+  discardDraft: () => set({ draftCard: null, selectedCard: null, isModalOpen: false }),
 
   updateCard: async (id, updates) => {
     // Optimistic update - update UI immediately (except taskNumber which comes from API)
@@ -742,6 +807,79 @@ export const useKanbanStore = create<KanbanStore>()(
     set((state) => ({
       lockedCardIds: state.lockedCardIds.filter((id) => id !== cardId),
     }));
+  },
+
+  // Dev server actions
+  startDevServer: async (cardId) => {
+    try {
+      const response = await fetch(`/api/cards/${cardId}/dev-server`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || "Failed to start dev server" };
+      }
+
+      // Update card with server info
+      set((state) => ({
+        cards: state.cards.map((card) =>
+          card.id === cardId
+            ? {
+                ...card,
+                devServerPort: data.port,
+                devServerPid: data.pid,
+                updatedAt: new Date().toISOString(),
+              }
+            : card
+        ),
+      }));
+
+      return { success: true, port: data.port };
+    } catch (error) {
+      console.error("Failed to start dev server:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  },
+
+  stopDevServer: async (cardId) => {
+    try {
+      const response = await fetch(`/api/cards/${cardId}/dev-server`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || "Failed to stop dev server" };
+      }
+
+      // Update card to clear server info
+      set((state) => ({
+        cards: state.cards.map((card) =>
+          card.id === cardId
+            ? {
+                ...card,
+                devServerPort: null,
+                devServerPid: null,
+                updatedAt: new Date().toISOString(),
+              }
+            : card
+        ),
+      }));
+
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to stop dev server:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   },
 
   // Settings actions

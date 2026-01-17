@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toaster";
 import { BackupScheduler } from "@/components/backup-scheduler";
 import "./globals.css";
 
@@ -32,6 +33,7 @@ export default function RootLayout({
           <TooltipProvider delayDuration={100} skipDelayDuration={0}>
             <BackupScheduler />
             {children}
+            <Toaster />
           </TooltipProvider>
         </ThemeProvider>
       </body>

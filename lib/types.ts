@@ -9,6 +9,7 @@ export type Status =
 export type Complexity = "low" | "medium" | "high";
 export type Priority = "low" | "medium" | "high";
 export type GitBranchStatus = "active" | "merged" | "rolled_back" | null;
+export type GitWorktreeStatus = "active" | "removed" | null;
 
 export interface Card {
   id: string;
@@ -25,6 +26,10 @@ export interface Card {
   taskNumber: number | null;
   gitBranchName: string | null;
   gitBranchStatus: GitBranchStatus;
+  gitWorktreePath: string | null;
+  gitWorktreeStatus: GitWorktreeStatus;
+  devServerPort: number | null;
+  devServerPid: number | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -106,13 +111,14 @@ export const TERMINAL_OPTIONS: { value: TerminalApp; label: string }[] = [
   { value: "terminal", label: "Terminal.app" },
 ];
 
-// Completed column filter
-export type CompletedFilter = 'today' | 'yesterday' | 'this_week';
+// Completed column filter - Updated in main for conflict test
+export type CompletedFilter = 'today' | 'yesterday' | 'this_week' | 'all';
 
 export const COMPLETED_FILTER_OPTIONS: { value: CompletedFilter; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'yesterday', label: 'Yesterday' },
   { value: 'this_week', label: 'This Week' },
+  { value: 'all', label: 'All Time' },
 ];
 
 // Complexity & Priority options

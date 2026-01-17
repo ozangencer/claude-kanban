@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { Card } from "@/lib/types";
 import { ensureHtml } from "@/lib/markdown";
 
 export async function GET() {
-  const rows = db.select().from(schema.cards).all();
+  const rows = db.select().from(schema.cards).orderBy(desc(schema.cards.taskNumber)).all();
 
   const cards: Card[] = rows.map((row) => ({
     id: row.id,
@@ -23,6 +23,10 @@ export async function GET() {
     taskNumber: row.taskNumber,
     gitBranchName: row.gitBranchName,
     gitBranchStatus: row.gitBranchStatus as Card["gitBranchStatus"],
+    gitWorktreePath: row.gitWorktreePath,
+    gitWorktreeStatus: row.gitWorktreeStatus as Card["gitWorktreeStatus"],
+    devServerPort: row.devServerPort,
+    devServerPid: row.devServerPid,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     completedAt: row.completedAt,
@@ -83,6 +87,12 @@ export async function POST(request: NextRequest) {
     projectFolder,
     projectId: body.projectId || null,
     taskNumber,
+    gitBranchName: null,
+    gitBranchStatus: null,
+    gitWorktreePath: null,
+    gitWorktreeStatus: null,
+    devServerPort: null,
+    devServerPid: null,
     createdAt: now,
     updatedAt: now,
     completedAt: (body.status === 'completed') ? now : null,

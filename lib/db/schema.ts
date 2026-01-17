@@ -34,6 +34,10 @@ export const cards = sqliteTable("cards", {
   taskNumber: integer("task_number"),
   gitBranchName: text("git_branch_name"),     // "kanban/PRJ-1-add-auth" or null
   gitBranchStatus: text("git_branch_status"), // "active" | "merged" | "rolled_back" | null
+  gitWorktreePath: text("git_worktree_path"), // "/path/.worktrees/kanban/KAN-1-..." or null
+  gitWorktreeStatus: text("git_worktree_status"), // "active" | "removed" | null
+  devServerPort: integer("dev_server_port"),  // 3000, 3001, etc. or null
+  devServerPid: integer("dev_server_pid"),    // Process ID or null
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
   completedAt: text("completed_at"),  // ISO date string, null if not completed

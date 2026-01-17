@@ -7,11 +7,11 @@ import { tmpdir } from "os";
 import { join } from "path";
 import type { TerminalApp, Status } from "@/lib/types";
 import {
-  createBranch,
   generateBranchName,
   isGitRepo,
-  checkoutBranch,
-  branchExists,
+  createWorktree,
+  worktreeExists,
+  getWorktreePath,
 } from "@/lib/git";
 
 type Phase = "planning" | "implementation" | "retest";
@@ -57,34 +57,35 @@ function buildPrompt(phase: Phase, ctx: PromptContext): string {
       return `# ${taskHeader}
 ${branchInfo}
 
-## Plan
-${solution}
-
 ## Instructions
-Implement the plan above. When done, save test scenarios with:
-mcp__kanban__save_tests({ id: "${card.id}", testScenarios: "..." })`;
+1. First, read the card details using: mcp__kanban__get_card with id: "${card.id}"
+2. Review the solutionSummary field for the implementation plan
+3. Implement the plan
+4. When done, save test scenarios using mcp__kanban__save_tests`;
 
     case "retest":
       return `# ${taskHeader}
 ${branchInfo}
 
-## Test Scenarios
-${tests}
+## Context
+The user tested this implementation but encountered an error.
 
 ## Instructions
-Verify each test scenario. If all pass, use mcp__kanban__update_card to mark complete.
-If tests fail, fix the issues and re-run tests.
+1. First, read the card details using: mcp__kanban__get_card with id: "${card.id}"
+2. Review the solutionSummary and description fields
+3. Wait for the user to describe the error they encountered
+4. Analyze the error and identify the root cause
+5. Fix the issues while preserving the original solution approach
+6. When done, save updated test scenarios using mcp__kanban__save_tests`;
 
-Card ID: ${card.id}`;
-
-    // Planning phase should not reach here (blocked earlier), but just in case
-    default:
+    case "planning":
       return `# ${taskHeader}
 
-## Description
-${description}
-
-Create an implementation plan for this task.`;
+## Instructions
+1. First, read the card details using: mcp__kanban__get_card with id: "${card.id}"
+2. Review the description field for task requirements
+3. Analyze this task and create a detailed implementation plan
+4. Do NOT implement yet - only plan`;
   }
 }
 
@@ -172,76 +173,94 @@ export async function POST(
   // Detect current phase
   const phase = detectPhase(card);
 
-  // Block terminal if planning phase - must complete planning first
-  if (phase === "planning") {
-    return NextResponse.json(
-      {
-        error: "Plan oluşturulmadan implementation başlatılamaz",
-        details: "Önce Solution Summary alanını doldurun veya Autonomous modda planning çalıştırın.",
-      },
-      { status: 400 }
-    );
-  }
-
   const newStatus = getNewStatus(phase, card.status as Status);
 
   console.log(`[Open Terminal] Phase: ${phase}`);
   console.log(`[Open Terminal] Current status: ${card.status} → New status: ${newStatus}`);
 
-  // Branch creation for implementation phase
+  // Worktree creation for implementation phase
   let gitBranchName = card.gitBranchName;
+  let gitWorktreePath = card.gitWorktreePath;
+  let gitWorktreeStatus = card.gitWorktreeStatus;
+  let actualWorkingDir = workingDir;
 
   if (phase === "implementation" && project && card.taskNumber) {
     const repoCheck = await isGitRepo(workingDir);
 
-    if (repoCheck && !card.gitBranchName) {
-      // Create new branch for implementation
-      const branchName = generateBranchName(
-        project.idPrefix,
-        card.taskNumber,
-        card.title
-      );
-
-      console.log(`[Open Terminal] Creating branch: ${branchName}`);
-      const result = await createBranch(workingDir, branchName);
-
-      if (result.success) {
-        gitBranchName = branchName;
-
-        // Update card with branch info
-        db.update(schema.cards)
-          .set({
-            gitBranchName: branchName,
-            gitBranchStatus: "active",
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(schema.cards.id, id))
-          .run();
-
-        console.log(`[Open Terminal] Branch created: ${branchName}`);
-      } else {
-        console.error(`[Open Terminal] Branch creation failed: ${result.error}`);
-        return NextResponse.json(
-          { error: `Git branch yaratılamadı: ${result.error}` },
-          { status: 500 }
+    if (repoCheck) {
+      // Determine branch name
+      let branchName = card.gitBranchName;
+      if (!branchName) {
+        branchName = generateBranchName(
+          project.idPrefix,
+          card.taskNumber,
+          card.title
         );
       }
-    } else if (repoCheck && card.gitBranchName) {
-      // Branch already exists - checkout to it
-      const exists = await branchExists(workingDir, card.gitBranchName);
-      if (exists) {
-        console.log(`[Open Terminal] Checking out existing branch: ${card.gitBranchName}`);
-        const checkoutResult = await checkoutBranch(workingDir, card.gitBranchName);
-        if (!checkoutResult.success) {
-          console.error(`[Open Terminal] Checkout failed: ${checkoutResult.error}`);
+
+      // Check if worktree exists or needs to be created
+      const expectedWorktreePath = getWorktreePath(workingDir, branchName);
+      const worktreeExistsResult = await worktreeExists(workingDir, expectedWorktreePath);
+
+      if (worktreeExistsResult) {
+        // Worktree exists - use it
+        console.log(`[Open Terminal] Using existing worktree: ${expectedWorktreePath}`);
+        actualWorkingDir = expectedWorktreePath;
+        gitWorktreePath = expectedWorktreePath;
+        gitWorktreeStatus = "active";
+        gitBranchName = branchName;
+      } else {
+        // Create new worktree
+        console.log(`[Open Terminal] Creating worktree for branch: ${branchName}`);
+        const worktreeResult = await createWorktree(workingDir, branchName);
+
+        if (worktreeResult.success) {
+          actualWorkingDir = worktreeResult.worktreePath;
+          gitWorktreePath = worktreeResult.worktreePath;
+          gitWorktreeStatus = "active";
+          gitBranchName = branchName;
+
+          // Update card with worktree info
+          db.update(schema.cards)
+            .set({
+              gitBranchName: branchName,
+              gitBranchStatus: "active",
+              gitWorktreePath: worktreeResult.worktreePath,
+              gitWorktreeStatus: "active",
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(schema.cards.id, id))
+            .run();
+
+          console.log(`[Open Terminal] Worktree created: ${worktreeResult.worktreePath}`);
+        } else {
+          console.error(`[Open Terminal] Worktree creation failed: ${worktreeResult.error}`);
           return NextResponse.json(
-            { error: `Branch checkout failed: ${checkoutResult.error}` },
+            { error: `Git worktree yaratılamadı: ${worktreeResult.error}` },
             { status: 500 }
           );
         }
       }
     }
+  } else if ((phase === "implementation" || phase === "retest") && card.gitWorktreePath) {
+    // For retest or subsequent implementation runs, use existing worktree
+    const worktreeExistsResult = await worktreeExists(workingDir, card.gitWorktreePath);
+    if (worktreeExistsResult) {
+      actualWorkingDir = card.gitWorktreePath;
+      console.log(`[Open Terminal] Using existing worktree: ${actualWorkingDir}`);
+    }
   }
+
+  // Build prompt AFTER branch is resolved
+  const displayId = project && card.taskNumber
+    ? `${project.idPrefix}-${card.taskNumber}`
+    : null;
+
+  const prompt = buildPrompt(phase, {
+    card,
+    displayId,
+    gitBranchName,
+  });
 
   try {
     // Update card status in database BEFORE opening terminal
@@ -262,9 +281,11 @@ export async function POST(
 
     // Note: kanban MCP server is globally configured via `claude mcp add`
     // KANBAN_CARD_ID env var is used by the hook to detect kanban sessions
-    const claudeCommand = `cd "${workingDir}" && KANBAN_CARD_ID="${id}" claude "${cleanPrompt}" --permission-mode plan`;
+    // Planning phase uses --permission-mode plan, others use normal mode
+    const permissionFlag = phase === "planning" ? " --permission-mode plan" : "";
+    const claudeCommand = `cd "${actualWorkingDir}" && KANBAN_CARD_ID="${id}" claude "${cleanPrompt}"${permissionFlag}`;
 
-    console.log(`[Open Terminal] Working dir: ${workingDir}`);
+    console.log(`[Open Terminal] Working dir: ${actualWorkingDir}`);
     console.log(`[Open Terminal] Prompt length: ${prompt.length} chars`);
     console.log(`[Open Terminal] Terminal app: ${terminal}`);
 
@@ -283,9 +304,11 @@ export async function POST(
         cardId: id,
         phase,
         newStatus,
-        workingDir,
+        workingDir: actualWorkingDir,
         terminal,
         gitBranchName,
+        gitWorktreePath,
+        gitWorktreeStatus,
         message: "Ghostty opened. Command copied to clipboard - press Cmd+V to paste.",
       });
     }
@@ -324,9 +347,11 @@ end tell`;
       cardId: id,
       phase,
       newStatus,
-      workingDir,
+      workingDir: actualWorkingDir,
       terminal,
       gitBranchName,
+      gitWorktreePath,
+      gitWorktreeStatus,
     });
   } catch (error) {
     console.error("Open terminal error:", error);

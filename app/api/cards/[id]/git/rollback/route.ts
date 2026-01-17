@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { rollback, isGitRepo } from "@/lib/git";
+import { isGitRepo, removeWorktree, pruneWorktrees } from "@/lib/git";
+import { stopDevServer, isProcessRunning } from "@/lib/dev-server";
+import { exec } from "child_process";
+import { promisify } from "util";
 import type { Status } from "@/lib/types";
+
+const execAsync = promisify(exec);
 
 export async function POST(
   request: NextRequest,
@@ -73,18 +78,38 @@ export async function POST(
   console.log(`[Rollback] Delete branch: ${deleteBranch}`);
   console.log(`[Rollback] Working dir: ${workingDir}`);
 
-  try {
-    const result = await rollback(workingDir, card.gitBranchName, deleteBranch);
+  // Stop dev server if running
+  if (card.devServerPid && isProcessRunning(card.devServerPid)) {
+    console.log(`[Rollback] Stopping dev server with PID ${card.devServerPid}`);
+    stopDevServer(card.devServerPid);
+  }
 
-    if (!result.success) {
-      console.error(`[Rollback] Failed: ${result.error}`);
-      return NextResponse.json(
-        { error: `Rollback failed: ${result.error}` },
-        { status: 500 }
-      );
+  try {
+    // Step 1: Remove the worktree if it exists
+    if (card.gitWorktreePath) {
+      console.log(`[Rollback] Removing worktree: ${card.gitWorktreePath}`);
+      const removeResult = await removeWorktree(workingDir, card.gitWorktreePath);
+      if (!removeResult.success) {
+        console.warn(`[Rollback] Failed to remove worktree: ${removeResult.error}`);
+        // Continue anyway - the worktree might have been deleted manually
+      }
     }
 
-    console.log(`[Rollback] Success - checked out to main${deleteBranch ? ", branch deleted" : ""}`);
+    // Step 2: Delete the branch if requested
+    if (deleteBranch) {
+      console.log(`[Rollback] Deleting branch: ${card.gitBranchName}`);
+      try {
+        await execAsync(`git branch -D ${card.gitBranchName}`, { cwd: workingDir });
+      } catch (branchError) {
+        console.warn(`[Rollback] Failed to delete branch: ${branchError}`);
+        // Continue anyway - branch deletion is not critical
+      }
+    }
+
+    // Step 3: Prune any orphan worktrees
+    await pruneWorktrees(workingDir);
+
+    console.log(`[Rollback] Success - worktree removed${deleteBranch ? ", branch deleted" : ", branch preserved"}`);
 
     // Update card - move to bugs, clear git info
     const updatedAt = new Date().toISOString();
@@ -95,8 +120,12 @@ export async function POST(
         status: newStatus,
         // Keep gitBranchName for reference, update status
         gitBranchStatus: "rolled_back",
+        gitWorktreeStatus: "removed",
         // Clear test scenarios since test failed
         testScenarios: "",
+        // Clear dev server info
+        devServerPort: null,
+        devServerPid: null,
         updatedAt,
       })
       .where(eq(schema.cards.id, id))
@@ -108,8 +137,8 @@ export async function POST(
       newStatus,
       branchDeleted: deleteBranch,
       message: deleteBranch
-        ? `Rolled back to main, branch ${card.gitBranchName} deleted`
-        : `Rolled back to main, branch ${card.gitBranchName} preserved`,
+        ? `Worktree removed, branch ${card.gitBranchName} deleted`
+        : `Worktree removed, branch ${card.gitBranchName} preserved`,
     });
   } catch (error) {
     console.error("[Rollback] Error:", error);

@@ -3,12 +3,11 @@ import { useKanbanStore } from "./store";
 
 export function useKeyboardShortcuts() {
   const {
-    addCardAndOpen,
+    openNewCardModal,
     isModalOpen,
     closeModal,
     toggleSidebar,
     activeProjectId,
-    projects,
   } = useKanbanStore();
 
   useEffect(() => {
@@ -41,26 +40,12 @@ export function useKeyboardShortcuts() {
       if (e.key === "n" || e.key === "N") {
         if (!isModalOpen) {
           e.preventDefault();
-          const activeProject = projects.find((p) => p.id === activeProjectId);
-          addCardAndOpen({
-            title: "New Task",
-            description: "",
-            solutionSummary: "",
-            testScenarios: "",
-            aiOpinion: "",
-            status: "backlog",
-            complexity: "medium",
-            priority: "medium",
-            projectFolder: activeProject?.folderPath || "",
-            projectId: activeProjectId,
-            gitBranchName: null,
-            gitBranchStatus: null,
-          });
+          openNewCardModal("backlog", activeProjectId);
         }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [addCardAndOpen, isModalOpen, closeModal, toggleSidebar, activeProjectId, projects]);
+  }, [openNewCardModal, isModalOpen, closeModal, toggleSidebar, activeProjectId]);
 }

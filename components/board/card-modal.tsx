@@ -11,6 +11,7 @@ import {
   COMPLEXITY_OPTIONS,
   PRIORITY_OPTIONS,
   GitBranchStatus,
+  GitWorktreeStatus,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,13 +39,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2, FileDown, GitBranch, GitMerge, Undo2, Loader2 } from "lucide-react";
+import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2, FileDown, GitBranch, GitMerge, Undo2, Loader2, FolderGit2, MonitorPlay, MonitorStop } from "lucide-react";
 import { downloadCardAsMarkdown } from "@/lib/card-export";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 
 // Strip HTML tags for preview text
 function stripHtml(html: string): string {
@@ -63,8 +65,12 @@ function ChevronIcon({ isOpen }: { isOpen: boolean }) {
 }
 
 export function CardModal() {
-  const { selectedCard, closeModal, updateCard, deleteCard, projects, cards, selectCard, openModal } =
+  const { selectedCard, closeModal, updateCard, deleteCard, projects, cards, selectCard, openModal, draftCard, saveDraftCard, discardDraft, startDevServer, stopDevServer } =
     useKanbanStore();
+  const { toast } = useToast();
+
+  // Check if we're in draft mode (creating a new card)
+  const isDraftMode = selectedCard?.id.startsWith("draft-");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -93,9 +99,17 @@ export function CardModal() {
   // Git branch state
   const [gitBranchName, setGitBranchName] = useState<string | null>(null);
   const [gitBranchStatus, setGitBranchStatus] = useState<GitBranchStatus>(null);
+  const [gitWorktreePath, setGitWorktreePath] = useState<string | null>(null);
+  const [gitWorktreeStatus, setGitWorktreeStatus] = useState<GitWorktreeStatus>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [showRollbackDialog, setShowRollbackDialog] = useState(false);
   const [isRollingBack, setIsRollingBack] = useState(false);
+  const [showCommitFirstDialog, setShowCommitFirstDialog] = useState(false);
+
+  // Dev server state
+  const [devServerPort, setDevServerPort] = useState<number | null>(null);
+  const [devServerPid, setDevServerPid] = useState<number | null>(null);
+  const [isServerLoading, setIsServerLoading] = useState(false);
 
   // Track unsaved changes
   const hasUnsavedChanges = selectedCard && (
@@ -139,6 +153,10 @@ export function CardModal() {
       setProjectId(selectedCard.projectId);
       setGitBranchName(selectedCard.gitBranchName);
       setGitBranchStatus(selectedCard.gitBranchStatus);
+      setGitWorktreePath(selectedCard.gitWorktreePath);
+      setGitWorktreeStatus(selectedCard.gitWorktreeStatus);
+      setDevServerPort(selectedCard.devServerPort);
+      setDevServerPid(selectedCard.devServerPid);
 
       // Auto-open Test Scenarios when card is in Human Test column
       if (selectedCard.status === "test") {
@@ -180,7 +198,11 @@ export function CardModal() {
   const handleClose = () => {
     setCardHistory([]);
     setIsVisible(false);
-    setTimeout(() => closeModal(), 200);
+    if (isDraftMode) {
+      setTimeout(() => discardDraft(), 200);
+    } else {
+      setTimeout(() => closeModal(), 200);
+    }
   };
 
   // Handle export
@@ -191,28 +213,110 @@ export function CardModal() {
   };
 
   // Handle git merge
-  const handleMerge = async () => {
+  const handleMerge = async (commitFirst = false) => {
     if (!selectedCard) return;
 
     setIsMerging(true);
     try {
       const response = await fetch(`/api/cards/${selectedCard.id}/git/merge`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commitFirst }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        alert(`Merge failed: ${error.error}`);
+
+        // Check if we need to show commit first dialog
+        if (error.uncommittedInMain) {
+          setShowCommitFirstDialog(true);
+          return;
+        }
+
+        toast({
+          variant: "destructive",
+          title: "Merge Failed",
+          description: error.error || "An error occurred during merge",
+        });
         return;
       }
 
       // Refresh the card data
       await useKanbanStore.getState().fetchCards();
+      toast({
+        title: "Branch Merged",
+        description: `Successfully merged and moved to Completed`,
+      });
       handleClose();
     } catch (error) {
-      alert(`Merge failed: ${error instanceof Error ? error.message : String(error)}`);
+      toast({
+        variant: "destructive",
+        title: "Merge Failed",
+        description: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsMerging(false);
+    }
+  };
+
+  // Handle commit and merge
+  const handleCommitAndMerge = async () => {
+    setShowCommitFirstDialog(false);
+    await handleMerge(true);
+  };
+
+  // Handle dev server start
+  const handleStartDevServer = async () => {
+    if (!selectedCard || isServerLoading) return;
+
+    setIsServerLoading(true);
+    try {
+      const result = await startDevServer(selectedCard.id);
+      if (result.success && result.port) {
+        setDevServerPort(result.port);
+        // Get the updated PID from store
+        const updatedCard = useKanbanStore.getState().cards.find(c => c.id === selectedCard.id);
+        if (updatedCard) {
+          setDevServerPid(updatedCard.devServerPid);
+        }
+        toast({
+          title: "Dev Server Started",
+          description: `Running on port ${result.port}`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to Start Server",
+          description: result.error || "Unknown error",
+        });
+      }
+    } finally {
+      setIsServerLoading(false);
+    }
+  };
+
+  // Handle dev server stop
+  const handleStopDevServer = async () => {
+    if (!selectedCard || isServerLoading) return;
+
+    setIsServerLoading(true);
+    try {
+      const result = await stopDevServer(selectedCard.id);
+      if (result.success) {
+        setDevServerPort(null);
+        setDevServerPid(null);
+        toast({
+          title: "Dev Server Stopped",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to Stop Server",
+          description: result.error || "Unknown error",
+        });
+      }
+    } finally {
+      setIsServerLoading(false);
     }
   };
 
@@ -230,16 +334,30 @@ export function CardModal() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(`Rollback failed: ${error.error}`);
+        toast({
+          variant: "destructive",
+          title: "Rollback Failed",
+          description: error.error || "An error occurred during rollback",
+        });
         return;
       }
 
       // Refresh the card data
       await useKanbanStore.getState().fetchCards();
       setShowRollbackDialog(false);
+      toast({
+        title: "Rolled Back",
+        description: deleteBranch
+          ? "Branch deleted, card moved to Bugs"
+          : "Switched to main, branch preserved",
+      });
       handleClose();
     } catch (error) {
-      alert(`Rollback failed: ${error instanceof Error ? error.message : String(error)}`);
+      toast({
+        variant: "destructive",
+        title: "Rollback Failed",
+        description: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setIsRollingBack(false);
     }
@@ -247,23 +365,47 @@ export function CardModal() {
 
   const handleSave = () => {
     if (selectedCard) {
-      const cardId = selectedCard.id;
       const selectedProject = projects.find((p) => p.id === projectId);
-      const updates = {
-        title,
-        description,
-        solutionSummary,
-        testScenarios,
-        aiOpinion,
-        status,
-        complexity,
-        priority,
-        projectId,
-        projectFolder: selectedProject?.folderPath || selectedCard.projectFolder,
-      };
-      // Close first, then update to prevent flicker
-      handleClose();
-      updateCard(cardId, updates);
+
+      if (isDraftMode) {
+        // Create new card
+        saveDraftCard({
+          title,
+          description,
+          solutionSummary,
+          testScenarios,
+          aiOpinion,
+          status,
+          complexity,
+          priority,
+          projectId,
+          projectFolder: selectedProject?.folderPath || "",
+          gitBranchName: null,
+          gitBranchStatus: null,
+          gitWorktreePath: null,
+          gitWorktreeStatus: null,
+          devServerPort: null,
+          devServerPid: null,
+        });
+      } else {
+        // Update existing card
+        const cardId = selectedCard.id;
+        const updates = {
+          title,
+          description,
+          solutionSummary,
+          testScenarios,
+          aiOpinion,
+          status,
+          complexity,
+          priority,
+          projectId,
+          projectFolder: selectedProject?.folderPath || selectedCard.projectFolder,
+        };
+        // Close first, then update to prevent flicker
+        handleClose();
+        updateCard(cardId, updates);
+      }
     }
   };
 
@@ -545,6 +687,128 @@ export function CardModal() {
             </div>
           </div>
 
+          {/* Git Branch Actions - Prominent placement for Human Test cards */}
+          {status === "test" && gitBranchName && gitBranchStatus === "active" && (
+            <div className="border-2 border-blue-500/50 rounded-lg p-4 bg-blue-500/10">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    <GitBranch className="h-4 w-4 text-blue-500" />
+                    <span className="font-mono text-muted-foreground">{gitBranchName}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleMerge()}
+                      disabled={isMerging}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {isMerging ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <GitMerge className="mr-2 h-4 w-4" />
+                      )}
+                      Merge & Complete
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRollbackDialog(true)}
+                      disabled={isMerging || isRollingBack}
+                      className="border-red-500/50 text-red-500 hover:bg-red-500/10"
+                    >
+                      <Undo2 className="mr-2 h-4 w-4" />
+                      Rollback
+                    </Button>
+                  </div>
+                </div>
+                {gitWorktreeStatus === "active" && gitWorktreePath && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <FolderGit2 className="h-3.5 w-3.5 text-cyan-500" />
+                    <span className="font-mono truncate" title={gitWorktreePath}>
+                      {gitWorktreePath.split('/').slice(-3).join('/')}
+                    </span>
+                  </div>
+                )}
+                {/* Dev Server Status */}
+                {gitWorktreeStatus === "active" && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-border/50 mt-2">
+                    {devServerPid ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-sm text-muted-foreground">
+                          Server running on port <span className="font-mono text-foreground">{devServerPort}</span>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleStopDevServer}
+                          disabled={isServerLoading}
+                          className="ml-auto border-red-500/50 text-red-500 hover:bg-red-500/10"
+                        >
+                          {isServerLoading ? (
+                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                          ) : (
+                            <MonitorStop className="mr-2 h-3 w-3" />
+                          )}
+                          Stop
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleStartDevServer}
+                        disabled={isServerLoading}
+                        className="border-cyan-500/50 text-cyan-500 hover:bg-cyan-500/10"
+                      >
+                        {isServerLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <MonitorPlay className="mr-2 h-4 w-4" />
+                        )}
+                        Start Dev Server
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Git Branch Status Badges */}
+          {gitBranchName && gitBranchStatus === "merged" && (
+            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-green-500/30 bg-green-500/10">
+              <GitMerge className="h-4 w-4 text-green-500" />
+              <span className="text-green-500 font-medium">Merged</span>
+              <span className="font-mono text-muted-foreground text-xs">{gitBranchName}</span>
+            </div>
+          )}
+
+          {gitBranchName && gitBranchStatus === "rolled_back" && (
+            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10">
+              <Undo2 className="h-4 w-4 text-yellow-500" />
+              <span className="text-yellow-500 font-medium">Rolled back</span>
+              <span className="font-mono text-muted-foreground text-xs">{gitBranchName}</span>
+            </div>
+          )}
+
+          {/* Active Worktree Badge (for In Progress cards) */}
+          {status === "progress" && gitWorktreeStatus === "active" && gitWorktreePath && gitBranchName && (
+            <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10">
+              <FolderGit2 className="h-4 w-4 text-cyan-500" />
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-cyan-500 font-medium">Worktree active</span>
+                  <span className="font-mono text-muted-foreground text-xs">{gitBranchName}</span>
+                </div>
+                <span className="font-mono text-muted-foreground text-xs truncate" title={gitWorktreePath}>
+                  {gitWorktreePath.split('/').slice(-3).join('/')}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Detail */}
           <Collapsible open={descriptionOpen} onOpenChange={setDescriptionOpen}>
             <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -637,58 +901,6 @@ export function CardModal() {
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Git Branch Section - Show when card is in Human Test and has a branch */}
-          {status === "test" && gitBranchName && gitBranchStatus === "active" && (
-            <div className="border border-border rounded-lg p-4 bg-muted/30 mt-4">
-              <div className="flex items-center gap-2 text-sm mb-3">
-                <GitBranch className="h-4 w-4 text-muted-foreground" />
-                <span className="font-mono text-muted-foreground">{gitBranchName}</span>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleMerge}
-                  disabled={isMerging}
-                  className="flex-1"
-                >
-                  {isMerging ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <GitMerge className="mr-2 h-4 w-4" />
-                  )}
-                  Merge to Main
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowRollbackDialog(true)}
-                  disabled={isMerging || isRollingBack}
-                >
-                  <Undo2 className="mr-2 h-4 w-4" />
-                  Rollback
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Show merged/rolled back status */}
-          {gitBranchName && gitBranchStatus === "merged" && (
-            <div className="border border-green-500/30 rounded-lg p-4 bg-green-500/10 mt-4">
-              <div className="flex items-center gap-2 text-sm">
-                <GitMerge className="h-4 w-4 text-green-500" />
-                <span className="text-green-500 font-medium">Branch merged</span>
-                <span className="font-mono text-muted-foreground">{gitBranchName}</span>
-              </div>
-            </div>
-          )}
-
-          {gitBranchName && gitBranchStatus === "rolled_back" && (
-            <div className="border border-yellow-500/30 rounded-lg p-4 bg-yellow-500/10 mt-4">
-              <div className="flex items-center gap-2 text-sm">
-                <Undo2 className="h-4 w-4 text-yellow-500" />
-                <span className="text-yellow-500 font-medium">Rolled back (branch kept)</span>
-                <span className="font-mono text-muted-foreground">{gitBranchName}</span>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -726,7 +938,7 @@ export function CardModal() {
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={!canSave}>
-              Save Changes
+              {isDraftMode ? "Create Card" : "Save Changes"}
             </Button>
           </div>
         </div>
@@ -792,6 +1004,33 @@ export function CardModal() {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isRollingBack}>Cancel</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Commit First Dialog */}
+      <AlertDialog open={showCommitFirstDialog} onOpenChange={setShowCommitFirstDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Uncommitted Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              There are uncommitted changes in the main repository. Would you like to commit these changes and proceed with the merge?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isMerging}>Cancel</AlertDialogCancel>
+            <Button
+              onClick={handleCommitAndMerge}
+              disabled={isMerging}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isMerging ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <GitMerge className="mr-2 h-4 w-4" />
+              )}
+              Commit & Merge
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

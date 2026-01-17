@@ -67,6 +67,15 @@ function sortCards(cards: Card[]): Card[] {
     );
   });
 }
+
+// Sort completed cards by completedAt (desc) - most recently completed first
+function sortCompletedCards(cards: Card[]): Card[] {
+  return [...cards].sort((a, b) => {
+    const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+    const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+    return dateB - dateA;
+  });
+}
 import { Column } from "./column";
 import { TaskCard } from "./card";
 
@@ -140,12 +149,16 @@ export function KanbanBoard() {
           if (column.id === 'completed') {
             columnCards = filterByCompletedDate(columnCards, completedFilter);
           }
+          // Use different sorting for completed vs other columns
+          const sortedCards = column.id === 'completed'
+            ? sortCompletedCards(columnCards)
+            : sortCards(columnCards);
           return (
             <Column
               key={column.id}
               id={column.id}
               title={column.title}
-              cards={sortCards(columnCards)}
+              cards={sortedCards}
             />
           );
         })}

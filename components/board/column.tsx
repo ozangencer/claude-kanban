@@ -20,27 +20,13 @@ interface ColumnProps {
 }
 
 export function Column({ id, title, cards }: ColumnProps) {
-  const { addCardAndOpen, activeProjectId, projects, collapsedColumns, toggleColumnCollapse, completedFilter, setCompletedFilter } = useKanbanStore();
+  const { openNewCardModal, activeProjectId, collapsedColumns, toggleColumnCollapse, completedFilter, setCompletedFilter } = useKanbanStore();
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const isCollapsed = collapsedColumns.includes(id);
 
   const handleAddCard = () => {
-    const activeProject = projects.find((p) => p.id === activeProjectId);
-    addCardAndOpen({
-      title: "",
-      description: "",
-      solutionSummary: "",
-      testScenarios: "",
-      aiOpinion: "",
-      status: id,
-      complexity: "medium",
-      priority: "medium",
-      projectFolder: activeProject?.folderPath || "",
-      projectId: activeProjectId,
-      gitBranchName: null,
-      gitBranchStatus: null,
-    });
+    openNewCardModal(id, activeProjectId);
   };
 
   // Collapsed view - vertical tab

@@ -5,7 +5,14 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { marked } from "marked";
 import type { Status } from "@/lib/types";
-import { createBranch, generateBranchName, isGitRepo, checkoutBranch, branchExists } from "@/lib/git";
+import {
+  generateBranchName,
+  isGitRepo,
+  branchExists,
+  createWorktree,
+  worktreeExists,
+  getWorktreePath,
+} from "@/lib/git";
 
 const execAsync = promisify(exec);
 
@@ -59,90 +66,57 @@ function detectPhase(card: { solutionSummary: string | null; testScenarios: stri
 
 function buildPrompt(
   phase: Phase,
-  card: { title: string; description: string; solutionSummary: string | null; testScenarios: string | null }
+  card: { id: string; title: string; description: string; solutionSummary: string | null; testScenarios: string | null }
 ): string {
   const title = stripHtml(card.title);
-  const description = stripHtml(card.description);
-  const solution = card.solutionSummary ? stripHtml(card.solutionSummary) : "";
-  const tests = card.testScenarios ? stripHtml(card.testScenarios) : "";
 
   switch (phase) {
     case "planning":
-      return `You are a senior software architect. Analyze this task and create a detailed implementation plan.
+      return `Kanban: ${card.id}
 
-## Task
-${title}
+Read card via MCP (mcp__kanban__get_card). Review title, description, and any existing notes.
 
-## Description
-${description}
+Task: Create implementation plan for "${title}".
 
-## Requirements
-1. Identify all files that need to be modified
-2. List implementation steps in order
-3. Consider edge cases and error handling
-4. Note any dependencies or prerequisites
+Plan format:
+- Files to Modify
+- Implementation Steps
+- Edge Cases
+- Dependencies
 
-## Output Format
-Provide a structured plan in markdown:
-- **Files to Modify**: List with brief description
-- **Implementation Steps**: Numbered, actionable steps
-- **Edge Cases**: Potential issues to handle
-- **Dependencies**: Required packages or services
-- **Notes**: Any important considerations
-
-## REQUIRED: Assessment Tags
-You MUST include these assessment tags at the END of your response:
-
+Must include at the end:
 [COMPLEXITY: trivial/low/medium/high/very_high]
-(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
-
 [PRIORITY: low/medium/high]
-(Based on urgency, impact, and dependencies. Be honest - not everything is high priority!)
 
-Do NOT implement yet - only plan.`;
+Do NOT implement yet - plan only.`;
 
     case "implementation":
-      return `You are a senior developer. Implement the following plan and write test scenarios.
+      return `Kanban: ${card.id}
 
-## Task
-${title}
+Read card via MCP (mcp__kanban__get_card). Follow the approved plan in solutionSummary.
 
-## Description
-${description}
+Task: Implement "${title}".
 
-## Approved Solution Plan
-${solution}
-
-## Instructions
-1. Implement the solution according to the plan above
-2. Follow existing code patterns in the project
-3. After implementation, write test scenarios in markdown
-
-## Test Scenarios Output Format
-## Test Scenarios for ${title}
-
+After coding, write test scenarios:
 ### Happy Path
-- [ ] Test case 1: Description
-- [ ] Test case 2: Description
+- [ ] Test case
 
 ### Edge Cases
-- [ ] Test case 3: Description
+- [ ] Test case
 
-### Regression Checks
-- [ ] Existing functionality X still works
+### Regression
+- [ ] Existing feature still works
 
-Implement the code, then output ONLY the test scenarios markdown.`;
+Write code, then output only test scenarios.`;
 
     case "retest":
-      return `Re-run and verify these test scenarios:
+      return `Kanban: ${card.id}
 
-## Task
-${title}
+Read card via MCP (mcp__kanban__get_card). Review previous implementation and test scenarios.
 
-## Test Scenarios
-${tests}
+Task: "${title}" failed during testing.
 
-Run each test and report results. Mark passing tests with ✅ and failing with ❌.`;
+User will describe the error - wait and fix.`;
   }
 }
 
@@ -200,66 +174,72 @@ export async function POST(
   console.log(`[Claude CLI] Phase: ${phase}`);
   console.log(`[Claude CLI] Current status: ${card.status} → New status: ${newStatus}`);
 
-  // Handle git branch for implementation phase
+  // Handle git branch and worktree for implementation phase
   let gitBranchName = card.gitBranchName;
   let gitBranchStatus = card.gitBranchStatus;
+  let gitWorktreePath = card.gitWorktreePath;
+  let gitWorktreeStatus = card.gitWorktreeStatus;
+  let actualWorkingDir = workingDir;
 
   if (phase === "implementation" && project && card.taskNumber) {
     const isRepo = await isGitRepo(workingDir);
 
     if (isRepo) {
-      // Check if card already has a branch
-      if (!card.gitBranchName) {
-        // Create new branch
-        const branchName = generateBranchName(
+      // Determine branch name
+      let branchName = card.gitBranchName;
+      if (!branchName) {
+        branchName = generateBranchName(
           project.idPrefix,
           card.taskNumber,
           card.title
         );
+      }
 
-        console.log(`[Git] Creating branch: ${branchName}`);
+      // Check if worktree exists or needs to be created
+      const expectedWorktreePath = getWorktreePath(workingDir, branchName);
+      const worktreeExistsResult = await worktreeExists(workingDir, expectedWorktreePath);
 
-        const result = await createBranch(workingDir, branchName);
+      if (worktreeExistsResult) {
+        // Worktree exists - use it
+        console.log(`[Git Worktree] Using existing worktree: ${expectedWorktreePath}`);
+        actualWorkingDir = expectedWorktreePath;
+        gitWorktreePath = expectedWorktreePath;
+        gitWorktreeStatus = "active";
+        gitBranchName = branchName;
+        gitBranchStatus = "active";
+      } else {
+        // Create new worktree (this also creates the branch if needed)
+        console.log(`[Git Worktree] Creating worktree for branch: ${branchName}`);
+        const worktreeResult = await createWorktree(workingDir, branchName);
 
-        if (result.success) {
+        if (worktreeResult.success) {
+          actualWorkingDir = worktreeResult.worktreePath;
+          gitWorktreePath = worktreeResult.worktreePath;
+          gitWorktreeStatus = "active";
           gitBranchName = branchName;
           gitBranchStatus = "active";
-          console.log(`[Git] Branch created successfully: ${branchName}`);
+          console.log(`[Git Worktree] Created worktree at: ${worktreeResult.worktreePath}`);
         } else {
-          console.error(`[Git] Failed to create branch: ${result.error}`);
+          console.error(`[Git Worktree] Failed to create worktree: ${worktreeResult.error}`);
           return NextResponse.json(
-            { error: `Failed to create git branch: ${result.error}` },
+            { error: `Failed to create git worktree: ${worktreeResult.error}` },
             { status: 500 }
           );
         }
-      } else {
-        // Card already has a branch - checkout to it
-        const exists = await branchExists(workingDir, card.gitBranchName);
-
-        if (exists) {
-          console.log(`[Git] Checking out existing branch: ${card.gitBranchName}`);
-          const checkoutResult = await checkoutBranch(workingDir, card.gitBranchName);
-
-          if (!checkoutResult.success) {
-            console.error(`[Git] Failed to checkout branch: ${checkoutResult.error}`);
-            return NextResponse.json(
-              { error: `Failed to checkout git branch: ${checkoutResult.error}` },
-              { status: 500 }
-            );
-          }
-        } else {
-          console.warn(`[Git] Branch ${card.gitBranchName} no longer exists`);
-          // Branch was deleted externally, clear git info
-          gitBranchName = null;
-          gitBranchStatus = null;
-        }
       }
+    }
+  } else if ((phase === "implementation" || phase === "retest") && card.gitWorktreePath) {
+    // For retest or subsequent implementation runs, use existing worktree
+    const worktreeExistsResult = await worktreeExists(workingDir, card.gitWorktreePath);
+    if (worktreeExistsResult) {
+      actualWorkingDir = card.gitWorktreePath;
+      console.log(`[Git Worktree] Using existing worktree: ${actualWorkingDir}`);
     }
   }
 
   try {
-    // Run Claude CLI
-    const result = await runClaudeCli(prompt, workingDir, phase);
+    // Run Claude CLI in the appropriate directory (worktree for implementation)
+    const result = await runClaudeCli(prompt, actualWorkingDir, phase);
 
     // Convert markdown response to HTML for TipTap editor
     const markedHtml = await marked(result.response);
@@ -291,6 +271,8 @@ export async function POST(
       updatedAt,
       gitBranchName,
       gitBranchStatus,
+      gitWorktreePath,
+      gitWorktreeStatus,
     };
 
     switch (phase) {
@@ -327,6 +309,8 @@ export async function POST(
       duration: result.duration,
       gitBranchName,
       gitBranchStatus,
+      gitWorktreePath,
+      gitWorktreeStatus,
     });
   } catch (error) {
     console.error("Claude CLI error:", error);
@@ -347,11 +331,11 @@ async function runClaudeCli(
 ): Promise<{ response: string; cost?: number; duration?: number }> {
   const escapedPrompt = escapeShellArg(prompt);
 
-  // Phase 2 (Implementation) needs full permissions to write code
-  // Other phases use dontAsk for safety
-  const permissionFlag = phase === "implementation"
-    ? "--dangerously-skip-permissions"
-    : "--permission-mode dontAsk";
+  // Planning phase uses dontAsk for safety (read-only exploration)
+  // Implementation and retest need full permissions to write code
+  const permissionFlag = phase === "planning"
+    ? "--permission-mode dontAsk"
+    : "--dangerously-skip-permissions";
 
   const command = `CI=true claude -p ${escapedPrompt} ${permissionFlag} --output-format json < /dev/null`;
 
