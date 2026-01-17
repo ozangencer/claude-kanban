@@ -30,6 +30,8 @@ export interface Card {
   gitWorktreeStatus: GitWorktreeStatus;
   devServerPort: number | null;
   devServerPid: number | null;
+  rebaseConflict: boolean | null;
+  conflictFiles: string[] | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;

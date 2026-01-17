@@ -38,6 +38,8 @@ export const cards = sqliteTable("cards", {
   gitWorktreeStatus: text("git_worktree_status"), // "active" | "removed" | null
   devServerPort: integer("dev_server_port"),  // 3000, 3001, etc. or null
   devServerPid: integer("dev_server_pid"),    // Process ID or null
+  rebaseConflict: integer("rebase_conflict", { mode: "boolean" }), // true if conflict detected during merge
+  conflictFiles: text("conflict_files"),      // JSON array of conflicting file paths
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
   completedAt: text("completed_at"),  // ISO date string, null if not completed

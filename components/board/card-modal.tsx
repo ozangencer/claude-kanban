@@ -39,7 +39,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2, FileDown, GitBranch, GitMerge, Undo2, Loader2, FolderGit2, MonitorPlay, MonitorStop } from "lucide-react";
+import { X, ChevronRight, ArrowLeft, Brain, FileText, Lightbulb, TestTube2, Maximize2, Minimize2, FileDown, GitBranch, GitMerge, Undo2, Loader2, FolderGit2, MonitorPlay, MonitorStop, AlertTriangle, Terminal } from "lucide-react";
 import { downloadCardAsMarkdown } from "@/lib/card-export";
 import {
   Tooltip,
@@ -105,6 +105,13 @@ export function CardModal() {
   const [showRollbackDialog, setShowRollbackDialog] = useState(false);
   const [isRollingBack, setIsRollingBack] = useState(false);
   const [showCommitFirstDialog, setShowCommitFirstDialog] = useState(false);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [conflictInfo, setConflictInfo] = useState<{
+    conflictFiles: string[];
+    worktreePath: string;
+    branchName: string;
+    displayId: string;
+  } | null>(null);
 
   // Dev server state
   const [devServerPort, setDevServerPort] = useState<number | null>(null);
@@ -233,6 +240,30 @@ export function CardModal() {
           return;
         }
 
+        // Check if there's a rebase conflict
+        if (error.rebaseConflict) {
+          setConflictInfo({
+            conflictFiles: error.conflictFiles || [],
+            worktreePath: error.worktreePath || "",
+            branchName: error.branchName || "",
+            displayId: error.displayId || "",
+          });
+          setShowConflictDialog(true);
+          // Refresh cards to show conflict badge
+          await useKanbanStore.getState().fetchCards();
+          return;
+        }
+
+        // Check for uncommitted changes in worktree
+        if (error.uncommittedInWorktree) {
+          toast({
+            variant: "destructive",
+            title: "Uncommitted Changes",
+            description: "Please commit your changes in the worktree before merging.",
+          });
+          return;
+        }
+
         toast({
           variant: "destructive",
           title: "Merge Failed",
@@ -263,6 +294,47 @@ export function CardModal() {
   const handleCommitAndMerge = async () => {
     setShowCommitFirstDialog(false);
     await handleMerge(true);
+  };
+
+  // Handle solve conflict with AI
+  const handleSolveConflictWithAI = async () => {
+    if (!selectedCard || !conflictInfo) return;
+
+    setShowConflictDialog(false);
+    try {
+      const response = await fetch(`/api/cards/${selectedCard.id}/resolve-conflict`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conflictFiles: conflictInfo.conflictFiles,
+          worktreePath: conflictInfo.worktreePath,
+          branchName: conflictInfo.branchName,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          title: "Failed to Open Terminal",
+          description: data.error || "Could not open terminal for conflict resolution",
+        });
+        return;
+      }
+
+      toast({
+        title: "Terminal Opened",
+        description: "Claude Code is ready to help resolve the conflict",
+      });
+      handleClose();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to open terminal",
+      });
+    }
   };
 
   // Handle dev server start
@@ -1030,6 +1102,54 @@ export function CardModal() {
                 <GitMerge className="mr-2 h-4 w-4" />
               )}
               Commit & Merge
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Conflict Dialog */}
+      <AlertDialog open={showConflictDialog} onOpenChange={setShowConflictDialog}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-500">
+              <AlertTriangle className="h-5 w-5" />
+              Rebase Conflict Detected
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  A merge conflict was detected while rebasing{" "}
+                  <span className="font-mono text-xs bg-secondary px-1.5 py-0.5 rounded">
+                    {conflictInfo?.branchName}
+                  </span>{" "}
+                  onto main.
+                </p>
+                {conflictInfo?.conflictFiles && conflictInfo.conflictFiles.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">Conflicting files:</p>
+                    <ul className="text-xs font-mono bg-secondary/50 rounded p-2 space-y-1">
+                      {conflictInfo.conflictFiles.map((file) => (
+                        <li key={file} className="text-red-400">
+                          • {file}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  The card will remain in Human Test with a conflict badge until resolved.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+            <Button
+              onClick={handleSolveConflictWithAI}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              <Terminal className="mr-2 h-4 w-4" />
+              Solve with AI
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -115,6 +115,8 @@ export async function PUT(
     gitWorktreeStatus: existing.gitWorktreeStatus as Card["gitWorktreeStatus"],
     devServerPort: existing.devServerPort,
     devServerPid: existing.devServerPid,
+    rebaseConflict: existing.rebaseConflict ?? null,
+    conflictFiles: existing.conflictFiles ? JSON.parse(existing.conflictFiles) : null,
     createdAt: existing.createdAt,
     updatedAt: updatedCard.updatedAt,
     completedAt: updatedCard.completedAt,

@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, COLUMNS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare, FileDown, FolderGit2, MonitorPlay, MonitorStop } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare, FileDown, FolderGit2, MonitorPlay, MonitorStop, AlertTriangle } from "lucide-react";
 import { downloadCardAsMarkdown } from "@/lib/card-export";
 import {
   ContextMenu,
@@ -536,6 +536,24 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                         : card.devServerPid
                         ? `Stop Server (port ${card.devServerPort})`
                         : "Start Dev Server"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {/* Conflict badge - shows when rebase conflict detected */}
+                {card.rebaseConflict && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="p-1 rounded bg-red-500/20 text-red-500 animate-pulse">
+                        <AlertTriangle className="w-3 h-3" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      Merge conflict detected
+                      {card.conflictFiles && card.conflictFiles.length > 0 && (
+                        <span className="block text-xs opacity-75">
+                          {card.conflictFiles.length} file(s) in conflict
+                        </span>
+                      )}
                     </TooltipContent>
                   </Tooltip>
                 )}
