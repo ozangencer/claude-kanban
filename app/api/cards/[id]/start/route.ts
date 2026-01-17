@@ -187,7 +187,10 @@ export async function POST(
   let gitWorktreeStatus = card.gitWorktreeStatus;
   let actualWorkingDir = workingDir;
 
-  if (phase === "implementation" && project && card.taskNumber) {
+  // Only use worktrees if project has it enabled (default: true)
+  const shouldUseWorktree = project?.useWorktrees ?? true;
+
+  if (phase === "implementation" && project && card.taskNumber && shouldUseWorktree) {
     const isRepo = await isGitRepo(workingDir);
 
     if (isRepo) {
@@ -234,13 +237,16 @@ export async function POST(
         }
       }
     }
-  } else if ((phase === "implementation" || phase === "retest") && card.gitWorktreePath) {
+  } else if ((phase === "implementation" || phase === "retest") && card.gitWorktreePath && shouldUseWorktree) {
     // For retest or subsequent implementation runs, use existing worktree
     const worktreeExistsResult = await worktreeExists(workingDir, card.gitWorktreePath);
     if (worktreeExistsResult) {
       actualWorkingDir = card.gitWorktreePath;
       console.log(`[Git Worktree] Using existing worktree: ${actualWorkingDir}`);
     }
+  } else if (!shouldUseWorktree && (phase === "implementation" || phase === "retest")) {
+    // No worktree mode - work directly on main branch
+    console.log(`[Git] Working directly on main branch (worktrees disabled)`);
   }
 
   try {

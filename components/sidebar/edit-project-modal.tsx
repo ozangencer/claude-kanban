@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Folder, Loader2, FileText } from "lucide-react";
+import { Folder, Loader2, FileText, GitBranch } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Popover,
@@ -61,6 +61,7 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
   const [documentPathsText, setDocumentPathsText] = useState(
     project.documentPaths?.join("\n") || ""
   );
+  const [useWorktrees, setUseWorktrees] = useState(project.useWorktrees ?? true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPickingFolder, setIsPickingFolder] = useState(false);
   const [hookInstalled, setHookInstalled] = useState<boolean | null>(null);
@@ -133,6 +134,7 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
         idPrefix: idPrefix.trim() || project.idPrefix,
         color,
         documentPaths: documentPaths.length > 0 ? documentPaths : null,
+        useWorktrees,
       });
       onClose();
     } catch (error) {
@@ -314,6 +316,25 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
                 disabled={isTogglingHook || hookInstalled === null}
               />
             </div>
+          </div>
+
+          {/* Git Worktrees */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-muted-foreground" />
+                <label className="text-sm font-medium">Git Worktrees</label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {useWorktrees
+                  ? "Creates isolated branches for each task"
+                  : "Works directly on main branch (flow mode)"}
+              </p>
+            </div>
+            <Switch
+              checked={useWorktrees}
+              onCheckedChange={setUseWorktrees}
+            />
           </div>
         </div>
 

@@ -11,6 +11,7 @@ export const projects = sqliteTable("projects", {
   isPinned: integer("is_pinned", { mode: "boolean" }).notNull().default(false),
   documentPaths: text("document_paths"), // JSON array of custom document paths, null = smart discovery
   narrativePath: text("narrative_path"), // Relative path to narrative file, null = use default (docs/product-narrative.md)
+  useWorktrees: integer("use_worktrees", { mode: "boolean" }).notNull().default(true), // Whether to use git worktrees for isolation
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -58,17 +59,3 @@ export const settings = sqliteTable("settings", {
 
 export type SettingRecord = typeof settings.$inferSelect;
 export type NewSetting = typeof settings.$inferInsert;
-
-// Background tasks tablosu - Claude Code background process tracking
-export const backgroundTasks = sqliteTable("background_tasks", {
-  id: text("id").primaryKey(),
-  taskId: text("task_id").notNull(),        // Claude Code task ID
-  pid: integer("pid"),                       // Process ID (if available)
-  description: text("description").notNull(), // What the task is doing
-  status: text("status").notNull().default("running"), // running, completed, failed
-  startedAt: text("started_at").notNull(),
-  completedAt: text("completed_at"),
-});
-
-export type BackgroundTaskRecord = typeof backgroundTasks.$inferSelect;
-export type NewBackgroundTask = typeof backgroundTasks.$inferInsert;

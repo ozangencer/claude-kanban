@@ -31,7 +31,7 @@ export function ProjectItem({ project, isActive, onEdit }: ProjectItemProps) {
           setActiveProject(project.id);
         }
       }}
-      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 group cursor-pointer ${
+      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2 group/project cursor-pointer ${
         isActive
           ? "bg-primary/10 text-primary"
           : "text-foreground hover:bg-muted"
@@ -51,14 +51,15 @@ export function ProjectItem({ project, isActive, onEdit }: ProjectItemProps) {
         {project.idPrefix}
       </span>
 
-      {/* Edit button */}
-      <TooltipProvider>
+      {/* Action buttons */}
+      <TooltipProvider delayDuration={0}>
+        {/* Edit button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-6 w-6 opacity-0 group-hover/project:opacity-100 transition-opacity"
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit(project);
@@ -71,16 +72,14 @@ export function ProjectItem({ project, isActive, onEdit }: ProjectItemProps) {
             <p>Edit project</p>
           </TooltipContent>
         </Tooltip>
-      </TooltipProvider>
 
-      {/* Pin button */}
-      <TooltipProvider>
+        {/* Pin button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className={`h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ${
+              className={`h-6 w-6 opacity-0 group-hover/project:opacity-100 transition-opacity ${
                 project.isPinned ? "opacity-100" : ""
               }`}
               onClick={(e) => {

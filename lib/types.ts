@@ -49,6 +49,7 @@ export interface Project {
   isPinned: boolean;
   documentPaths: string[] | null; // Custom document paths, null = smart discovery
   narrativePath: string | null; // Relative path to narrative file, null = docs/product-narrative.md
+  useWorktrees: boolean; // Whether to use git worktrees for isolation (default: true)
   createdAt: string;
   updatedAt: string;
 }

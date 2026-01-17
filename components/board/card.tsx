@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, getDisplayId, COLUMNS } from "@/lib/types";
 import { useKanbanStore } from "@/lib/store";
-import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare, FileDown, FolderGit2, MonitorPlay, MonitorStop, AlertTriangle, Check } from "lucide-react";
+import { Play, Loader2, Terminal, Lightbulb, FlaskConical, ExternalLink, ArrowRightLeft, Trash2, Zap, Unlock, Brain, MessagesSquare, FileDown, FolderGit2, MonitorPlay, MonitorStop, AlertTriangle, Check, GitCommitHorizontal } from "lucide-react";
 import { downloadCardAsMarkdown } from "@/lib/card-export";
 import {
   ContextMenu,
@@ -575,6 +575,17 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                     <TooltipContent side="top">Worktree active</TooltipContent>
                   </Tooltip>
                 )}
+                {/* Show "Main" badge when project has worktrees disabled */}
+                {project && !project.useWorktrees && !isBackgroundProcessing && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="p-1 rounded bg-gray-500/15 text-gray-400">
+                        <GitCommitHorizontal className="w-3 h-3" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Direct on main (no worktree)</TooltipContent>
+                  </Tooltip>
+                )}
                 {stripHtml(card.solutionSummary) && !isBackgroundProcessing && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -691,10 +702,16 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                 <p>
                   <strong>Tip:</strong> Use <kbd className="px-1.5 py-0.5 bg-secondary border border-border rounded text-xs">⌘V</kbd> to paste in Ghostty terminal.
                 </p>
-                {expectedWorktreePath && phase === "implementation" && (
-                  <p className="text-cyan-500 text-xs font-mono">
-                    Worktree: {expectedWorktreePath.split('/').slice(-3).join('/')}
-                  </p>
+                {phase === "implementation" && (
+                  project?.useWorktrees === false ? (
+                    <p className="text-gray-400 text-xs font-mono">
+                      Working directly on main (worktrees disabled)
+                    </p>
+                  ) : expectedWorktreePath && (
+                    <p className="text-cyan-500 text-xs font-mono">
+                      Worktree: {expectedWorktreePath.split('/').slice(-3).join('/')}
+                    </p>
+                  )
                 )}
               </div>
             </AlertDialogDescription>
@@ -745,13 +762,21 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                 )}
                 {phase === "implementation" && (
                   <div className="space-y-1">
-                    <p className="text-amber-500">
-                      Files in your project may be modified. A new worktree will be created automatically.
-                    </p>
-                    {expectedWorktreePath && (
-                      <p className="text-cyan-500 text-xs font-mono">
-                        {expectedWorktreePath.split('/').slice(-3).join('/')}
+                    {project?.useWorktrees === false ? (
+                      <p className="text-amber-500">
+                        Files in your project may be modified. Working directly on main branch.
                       </p>
+                    ) : (
+                      <>
+                        <p className="text-amber-500">
+                          Files in your project may be modified. A new worktree will be created automatically.
+                        </p>
+                        {expectedWorktreePath && (
+                          <p className="text-cyan-500 text-xs font-mono">
+                            {expectedWorktreePath.split('/').slice(-3).join('/')}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 )}

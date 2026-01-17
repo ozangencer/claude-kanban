@@ -19,6 +19,7 @@ export async function GET() {
         isPinned: row.isPinned,
         documentPaths: row.documentPaths ? JSON.parse(row.documentPaths) : null,
         narrativePath: row.narrativePath,
+        useWorktrees: row.useWorktrees ?? true,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       }))
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
       isPinned: body.isPinned || false,
       documentPaths: body.documentPaths ? JSON.stringify(body.documentPaths) : null,
       narrativePath: body.narrativePath || null,
+      useWorktrees: body.useWorktrees ?? true,
       createdAt: now,
       updatedAt: now,
     };
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
       ...newProject,
       documentPaths: body.documentPaths || null,
       narrativePath: body.narrativePath || null,
+      useWorktrees: newProject.useWorktrees,
     };
     return NextResponse.json(responseProject, { status: 201 });
   } catch (error) {
