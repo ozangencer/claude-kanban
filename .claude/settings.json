@@ -2,6 +2,7 @@
   "hooks": {
     "UserPromptSubmit": [
       {
+        "description": "Kanban card reminder - shows update options when KANBAN_CARD_ID is set",
         "hooks": [
           {
             "type": "command",

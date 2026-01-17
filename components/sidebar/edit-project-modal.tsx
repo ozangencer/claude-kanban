@@ -303,7 +303,7 @@ export function EditProjectModal({ project, onClose }: EditProjectModalProps) {
             <div className="space-y-0.5">
               <label className="text-sm font-medium">Kanban Hook</label>
               <p className="text-xs text-muted-foreground">
-                Reminds you to save plan after ExitPlanMode
+                Reminds you to update kanban card on every message
               </p>
             </div>
             <div className="flex items-center gap-2">

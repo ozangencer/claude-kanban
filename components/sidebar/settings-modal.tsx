@@ -216,7 +216,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <div className="grid gap-2">
             <label className="text-sm font-medium">Claude Code Hooks</label>
             <p className="text-xs text-muted-foreground mb-2">
-              Sets up reminder to save plans to kanban cards after ExitPlanMode
+              Reminds you to update kanban cards on every message
             </p>
             <div className="flex items-center gap-3">
               <Button
