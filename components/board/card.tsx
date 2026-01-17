@@ -666,11 +666,6 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
                   <strong className="text-amber-500">Warning:</strong> No plan will be written. This runs in autonomous mode with full file access.
                   After the bug fix is completed, the card will automatically be moved to the Human Test column.
                 </p>
-                {expectedWorktreePath && (
-                  <p className="text-cyan-500 text-xs font-mono">
-                    Worktree: {expectedWorktreePath.split('/').slice(-3).join('/')}
-                  </p>
-                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
