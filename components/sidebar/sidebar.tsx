@@ -88,7 +88,7 @@ export function Sidebar() {
   }
 
   return (
-    <>
+    <TooltipProvider delayDuration={0}>
       <div className="w-64 border-r border-border bg-card flex flex-col h-full shrink-0">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -97,40 +97,36 @@ export function Sidebar() {
             <span className="text-sm font-medium text-foreground">Projects</span>
           </div>
           <div className="flex items-center gap-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="h-7 w-7"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Settings</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={toggleSidebar}
-                    className="h-7 w-7"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <p>Collapse sidebar</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="h-7 w-7"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>Settings</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSidebar}
+                  className="h-7 w-7"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Collapse sidebar</p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -159,6 +155,6 @@ export function Sidebar() {
       {isSettingsOpen && (
         <SettingsModal onClose={() => setIsSettingsOpen(false)} />
       )}
-    </>
+    </TooltipProvider>
   );
 }

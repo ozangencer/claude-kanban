@@ -3,14 +3,12 @@ import * as path from "path";
 
 const KANBAN_HOOK = {
   hooks: {
-    PostToolUse: [
+    UserPromptSubmit: [
       {
-        matcher: "ExitPlanMode",
         hooks: [
           {
             type: "command",
-            command:
-              "if [ -z \"$KANBAN_CARD_ID\" ]; then exit 0; fi; echo '⚠️ KANBAN REMINDER: Don't forget to save the plan to your card → use mcp__kanban__save_plan'",
+            command: `if [ -n "$KANBAN_CARD_ID" ]; then echo "\\n<system-reminder>\\nKanban Card: $KANBAN_CARD_ID\\nBefore finishing, update the card:\\n- After planning: save_plan (moves to In Progress)\\n- After implementation: save_tests (moves to Human Test)\\n- After idea discussion: save_opinion\\n</system-reminder>"; fi`,
           },
         ],
       },
@@ -47,17 +45,23 @@ export function installKanbanHook(folderPath: string): { success: boolean; error
 
     // Merge hooks
     const existingHooks = (existingSettings.hooks as Record<string, unknown[]>) || {};
-    const existingPostToolUse = existingHooks.PostToolUse || [];
+    const existingUserPromptSubmit = existingHooks.UserPromptSubmit || [];
 
-    // Check if kanban hook already exists
-    const hasKanbanHook = existingPostToolUse.some(
-      (hook: unknown) =>
-        typeof hook === "object" &&
-        hook !== null &&
-        "matcher" in hook &&
-        (hook as { matcher: string }).matcher === "ExitPlanMode" &&
-        JSON.stringify(hook).includes("KANBAN REMINDER")
-    );
+    // Check if kanban hook already exists (look inside nested hooks array)
+    const hasKanbanHook = existingUserPromptSubmit.some((hookGroup: unknown) => {
+      if (typeof hookGroup !== "object" || hookGroup === null || !("hooks" in hookGroup)) {
+        return false;
+      }
+      const innerHooks = (hookGroup as { hooks: unknown[] }).hooks;
+      return innerHooks.some(
+        (hook: unknown) =>
+          typeof hook === "object" &&
+          hook !== null &&
+          "command" in hook &&
+          typeof (hook as { command: string }).command === "string" &&
+          (hook as { command: string }).command.includes("KANBAN_CARD_ID")
+      );
+    });
 
     if (hasKanbanHook) {
       return { success: true }; // Already installed
@@ -68,7 +72,7 @@ export function installKanbanHook(folderPath: string): { success: boolean; error
       ...existingSettings,
       hooks: {
         ...existingHooks,
-        PostToolUse: [...existingPostToolUse, ...KANBAN_HOOK.hooks.PostToolUse],
+        UserPromptSubmit: [...existingUserPromptSubmit, ...KANBAN_HOOK.hooks.UserPromptSubmit],
       },
     };
 
@@ -98,25 +102,32 @@ export function removeKanbanHook(folderPath: string): { success: boolean; error?
     const content = fs.readFileSync(settingsPath, "utf-8");
     const settings = JSON.parse(content);
 
-    if (!settings.hooks?.PostToolUse) {
+    if (!settings.hooks?.UserPromptSubmit) {
       return { success: true }; // No hooks to remove
     }
 
-    // Filter out kanban hook
-    settings.hooks.PostToolUse = settings.hooks.PostToolUse.filter(
-      (hook: unknown) =>
-        !(
-          typeof hook === "object" &&
-          hook !== null &&
-          "matcher" in hook &&
-          (hook as { matcher: string }).matcher === "ExitPlanMode" &&
-          JSON.stringify(hook).includes("KANBAN REMINDER")
-        )
+    // Filter out kanban hook (look inside nested hooks array)
+    settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit.filter(
+      (hookGroup: unknown) => {
+        if (typeof hookGroup !== "object" || hookGroup === null || !("hooks" in hookGroup)) {
+          return true; // Keep non-standard entries
+        }
+        const innerHooks = (hookGroup as { hooks: unknown[] }).hooks;
+        const hasKanbanHook = innerHooks.some(
+          (hook: unknown) =>
+            typeof hook === "object" &&
+            hook !== null &&
+            "command" in hook &&
+            typeof (hook as { command: string }).command === "string" &&
+            (hook as { command: string }).command.includes("KANBAN_CARD_ID")
+        );
+        return !hasKanbanHook;
+      }
     );
 
     // Clean up empty arrays
-    if (settings.hooks.PostToolUse.length === 0) {
-      delete settings.hooks.PostToolUse;
+    if (settings.hooks.UserPromptSubmit.length === 0) {
+      delete settings.hooks.UserPromptSubmit;
     }
     if (Object.keys(settings.hooks).length === 0) {
       delete settings.hooks;
