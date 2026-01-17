@@ -357,7 +357,7 @@ export function TaskCard({ card, isDragging = false }: TaskCardProps) {
             )}
 
             {/* Title with displayId and priority */}
-            <div className="flex items-start gap-2 mb-1">
+            <div className={`flex items-start gap-2 mb-1 ${isLocked && !isBackgroundProcessing ? "pr-8" : ""}`}>
               {displayId && (
                 <span
                   className="text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0"
