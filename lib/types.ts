@@ -141,3 +141,4 @@ export const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }
 =======
 // WORKTREE CHANGE - CONFLICT TEST
 >>>>>>> 18f6cfb (test: Worktree change for conflict)
+// MAIN: Conflicting line
