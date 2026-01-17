@@ -130,11 +130,14 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Content */}
+        {/* Project List - outside ScrollArea to avoid overflow issues */}
+        <div className="py-2">
+          <ProjectList />
+        </div>
+
+        {/* Scrollable Content */}
         <ScrollArea className="flex-1">
           <div className="py-2">
-            <ProjectList />
-
             {/* Skills Section */}
             <SkillList />
 

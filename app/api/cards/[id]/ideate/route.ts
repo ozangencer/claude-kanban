@@ -6,72 +6,7 @@ import { writeFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import type { TerminalApp } from "@/lib/types";
-
-function stripHtml(html: string): string {
-  if (!html) return "";
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function buildIdeationPrompt(card: { id: string; title: string; description: string }): string {
-  const title = stripHtml(card.title);
-  const description = stripHtml(card.description);
-
-  return `You are a Product Strategist. Let's brainstorm and refine this idea together.
-
-## Idea to Discuss
-**Title:** ${title}
-
-**Description:**
-${description}
-
-## Your Role
-1. Ask clarifying questions to understand the idea better
-2. Challenge assumptions - consider YAGNI, scope creep risks
-3. Explore alternatives and improvements
-4. Help refine the concept into something actionable
-5. Consider technical feasibility and implementation complexity
-
-## Discussion Guidelines
-- Be curious and ask probing questions
-- Point out potential issues constructively
-- Suggest improvements or alternatives
-- Help prioritize if the idea is too broad
-- Be honest but collaborative
-
-## Kanban MCP Tools Available
-- mcp__kanban__save_opinion - Save your final thoughts to the card
-- mcp__kanban__update_card - Update card fields (including priority)
-- mcp__kanban__get_card - Get card details
-
-Card ID: ${card.id}
-
-## CRITICAL: When Discussion Ends
-Before finishing, you MUST do THREE things:
-
-### 1. Update Priority
-Based on our discussion, update the card priority:
-\`\`\`
-mcp__kanban__update_card({ id: "${card.id}", priority: "low" | "medium" | "high" })
-\`\`\`
-Be BRUTALLY HONEST - not everything is high priority!
-
-### 2. Update Complexity
-Based on the scope of the idea, update the card complexity:
-\`\`\`
-mcp__kanban__update_card({ id: "${card.id}", complexity: "trivial" | "low" | "medium" | "high" | "very_high" })
-\`\`\`
-(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
-
-### 3. Save Your Opinion
-Your opinion MUST include EXACTLY these sections:
-\`\`\`
-mcp__kanban__save_opinion({ id: "${card.id}", aiOpinion: "## Summary Verdict\\n[Strong Yes / Yes / Maybe / No / Strong No]\\n\\n## Strengths\\n- Point 1\\n- Point 2\\n\\n## Concerns\\n- Point 1\\n- Point 2\\n\\n## Recommendations\\n- Recommendation 1\\n- Recommendation 2\\n\\n## Priority\\n[PRIORITY: low/medium/high] - Your reasoning\\n\\n## Final Score\\n[X/10] - Brief justification" })
-\`\`\`
-
-Do NOT end the session without updating priority, complexity, and saving your opinion.
-
-Let's start! What would you like to explore about this idea?`;
-}
+import { stripHtml, buildIdeationPrompt } from "@/lib/prompts";
 
 export async function POST(
   request: NextRequest,

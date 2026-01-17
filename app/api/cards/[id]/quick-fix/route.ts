@@ -5,6 +5,12 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { marked } from "marked";
 import type { Status } from "@/lib/types";
+import {
+  stripHtml,
+  convertToTipTapTaskList,
+  escapeShellArg,
+  buildQuickFixPrompt,
+} from "@/lib/prompts";
 
 const execAsync = promisify(exec);
 
@@ -16,59 +22,6 @@ interface ClaudeResponse {
   is_error?: boolean;
   num_turns?: number;
   session_id?: string;
-}
-
-function stripHtml(html: string): string {
-  if (!html) return "";
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-// Convert marked checkbox output to TipTap TaskList format
-function convertToTipTapTaskList(html: string): string {
-  let result = html
-    .replace(/<li><input[^>]*checked[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="true">')
-    .replace(/<li><input[^>]*type="checkbox"[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="false">');
-
-  result = result.replace(/<ul>(\s*<li data-type="taskItem")/g, '<ul data-type="taskList">$1');
-  return result;
-}
-
-function escapeShellArg(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`;
-}
-
-function buildQuickFixPrompt(card: { title: string; description: string }): string {
-  const title = stripHtml(card.title);
-  const description = stripHtml(card.description);
-
-  return `You are a senior developer. Fix this bug quickly and efficiently.
-
-## Bug Report
-${title}
-
-## Description
-${description}
-
-## Instructions
-1. Analyze the bug description
-2. Find the root cause in the codebase
-3. Implement the fix
-4. Verify the fix works
-
-## Output Requirements
-After fixing the bug, provide a brief summary in this format:
-
-## Quick Fix Summary
-- **Root Cause:** Brief description of what caused the bug
-- **Fix Applied:** What was changed to fix it
-- **Files Modified:** List of files that were changed
-
-## Test Scenarios
-- [ ] Bug no longer reproduces
-- [ ] Related functionality still works
-- [ ] No regression in existing tests
-
-Focus on fixing the bug efficiently. Do NOT write extensive documentation or plans.`;
 }
 
 export async function POST(

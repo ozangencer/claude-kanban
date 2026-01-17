@@ -45,59 +45,63 @@ export function ProjectItem({ project, isActive, onEdit }: ProjectItemProps) {
       {/* Project name */}
       <span className="truncate flex-1">{project.name}</span>
 
-      {/* Prefix badge */}
-      <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
+      {/* Prefix badge - hide on hover/active to make room for buttons */}
+      <span className={`text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded shrink-0 transition-opacity ${
+        isActive ? "opacity-0" : "group-hover/project:opacity-0"
+      }`}>
         {project.idPrefix}
       </span>
 
-      {/* Action buttons */}
-      {/* Edit button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 opacity-0 group-hover/project:opacity-100 transition-opacity relative z-10"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(project);
-            }}
-          >
-            <Pencil className="h-3 w-3 text-muted-foreground" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          <p>Edit project</p>
-        </TooltipContent>
-      </Tooltip>
+      {/* Action buttons - absolute positioned to avoid overflow */}
+      <div className={`absolute right-2 flex items-center gap-0.5 transition-opacity ${
+        isActive ? "opacity-100" : "opacity-0 group-hover/project:opacity-100"
+      }`}>
+        {/* Edit button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(project);
+              }}
+            >
+              <Pencil className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Edit project</p>
+          </TooltipContent>
+        </Tooltip>
 
-      {/* Pin button */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`h-6 w-6 opacity-0 group-hover/project:opacity-100 transition-opacity relative z-10 ${
-              project.isPinned ? "opacity-100" : ""
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleProjectPin(project.id);
-            }}
-          >
-            <Star
-              className={`h-3 w-3 ${
-                project.isPinned
-                  ? "fill-primary text-primary"
-                  : "text-muted-foreground"
-              }`}
-            />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          <p>{project.isPinned ? "Unpin project" : "Pin project"}</p>
-        </TooltipContent>
-      </Tooltip>
+        {/* Pin button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleProjectPin(project.id);
+              }}
+            >
+              <Star
+                className={`h-3 w-3 ${
+                  project.isPinned
+                    ? "fill-primary text-primary"
+                    : "text-muted-foreground"
+                }`}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>{project.isPinned ? "Unpin project" : "Pin project"}</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 }

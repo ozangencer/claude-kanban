@@ -13,6 +13,14 @@ import {
   worktreeExists,
   getWorktreePath,
 } from "@/lib/git";
+import {
+  stripHtml,
+  convertToTipTapTaskList,
+  escapeShellArg,
+  detectPhase,
+  buildPhasePrompt,
+  type Phase,
+} from "@/lib/prompts";
 
 const execAsync = promisify(exec);
 
@@ -24,100 +32,6 @@ interface ClaudeResponse {
   is_error?: boolean;
   num_turns?: number;
   session_id?: string;
-}
-
-type Phase = "planning" | "implementation" | "retest";
-
-function stripHtml(html: string): string {
-  if (!html) return "";
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-// Convert marked checkbox output to TipTap TaskList format
-function convertToTipTapTaskList(html: string): string {
-  // marked outputs: <li><input disabled="" type="checkbox"> text</li>
-  // TipTap expects: <ul data-type="taskList"><li data-type="taskItem" data-checked="false">text</li></ul>
-
-  // First, convert checked items (must come before unchecked to avoid false positives)
-  let result = html
-    // Checked: <li><input checked="" ...> → <li data-type="taskItem" data-checked="true">
-    .replace(/<li><input[^>]*checked[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="true">')
-    // Unchecked: <li><input ...> (no checked) → <li data-type="taskItem" data-checked="false">
-    .replace(/<li><input[^>]*type="checkbox"[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="false">');
-
-  // Convert <ul> containing taskItems to taskList
-  result = result.replace(/<ul>(\s*<li data-type="taskItem")/g, '<ul data-type="taskList">$1');
-
-  return result;
-}
-
-function escapeShellArg(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`;
-}
-
-function detectPhase(card: { solutionSummary: string | null; testScenarios: string | null }): Phase {
-  const hasSolution = card.solutionSummary && stripHtml(card.solutionSummary) !== "";
-  const hasTests = card.testScenarios && stripHtml(card.testScenarios) !== "";
-
-  if (!hasSolution) return "planning";
-  if (!hasTests) return "implementation";
-  return "retest";
-}
-
-function buildPrompt(
-  phase: Phase,
-  card: { id: string; title: string; description: string; solutionSummary: string | null; testScenarios: string | null }
-): string {
-  const title = stripHtml(card.title);
-
-  switch (phase) {
-    case "planning":
-      return `Kanban: ${card.id}
-
-Read card via MCP (mcp__kanban__get_card). Review title, description, and any existing notes.
-
-Task: Create implementation plan for "${title}".
-
-Plan format:
-- Files to Modify
-- Implementation Steps
-- Edge Cases
-- Dependencies
-
-Must include at the end:
-[COMPLEXITY: trivial/low/medium/high/very_high]
-[PRIORITY: low/medium/high]
-
-Do NOT implement yet - plan only.`;
-
-    case "implementation":
-      return `Kanban: ${card.id}
-
-Read card via MCP (mcp__kanban__get_card). Follow the approved plan in solutionSummary.
-
-Task: Implement "${title}".
-
-After coding, write test scenarios:
-### Happy Path
-- [ ] Test case
-
-### Edge Cases
-- [ ] Test case
-
-### Regression
-- [ ] Existing feature still works
-
-Write code, then output only test scenarios.`;
-
-    case "retest":
-      return `Kanban: ${card.id}
-
-Read card via MCP (mcp__kanban__get_card). Review previous implementation and test scenarios.
-
-Task: "${title}" failed during testing.
-
-User will describe the error - wait and fix.`;
-  }
 }
 
 function getNewStatus(phase: Phase, currentStatus: Status): Status {
@@ -168,7 +82,7 @@ export async function POST(
 
   // Detect current phase
   const phase = detectPhase(card);
-  const prompt = buildPrompt(phase, card);
+  const prompt = buildPhasePrompt(phase, card);
   const newStatus = getNewStatus(phase, card.status as Status);
 
   console.log(`[Claude CLI] Phase: ${phase}`);

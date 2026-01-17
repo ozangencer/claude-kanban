@@ -282,7 +282,7 @@ export function createCardSuggestion(
 
 // Document suggestion for # trigger
 interface DocumentSuggestionConfig {
-  documents: DocumentFile[];
+  getDocuments: () => DocumentFile[];
 }
 
 export function createDocumentSuggestion(
@@ -295,8 +295,9 @@ export function createDocumentSuggestion(
 
     items: ({ query }) => {
       const searchQuery = query.toLowerCase();
+      const documents = config.getDocuments();
 
-      return config.documents
+      return documents
         .map((doc) => ({
           id: doc.relativePath,
           name: doc.name,

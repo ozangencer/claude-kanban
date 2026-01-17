@@ -1,0 +1,414 @@
+/**
+ * Centralized prompt builders for Claude Code integration
+ * All prompts used in API routes are defined here for easy maintenance
+ */
+
+// ============================================================================
+// Types
+// ============================================================================
+
+export type Phase = "planning" | "implementation" | "retest";
+
+export interface CardForPrompt {
+  id: string;
+  title: string;
+  description: string;
+  solutionSummary?: string | null;
+  testScenarios?: string | null;
+}
+
+export interface NarrativeData {
+  storyBehindThis: string;
+  problem: string;
+  targetUsers: string;
+  coreFeatures: string;
+  nonGoals: string;
+  techStack: string;
+  successMetrics: string;
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Strip HTML tags from a string
+ */
+export function stripHtml(html: string): string {
+  if (!html) return "";
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Convert marked checkbox output to TipTap TaskList format
+ * marked outputs: <li><input disabled="" type="checkbox"> text</li>
+ * TipTap expects: <ul data-type="taskList"><li data-type="taskItem" data-checked="false">text</li></ul>
+ */
+export function convertToTipTapTaskList(html: string): string {
+  // First, convert checked items (must come before unchecked to avoid false positives)
+  let result = html
+    // Checked: <li><input checked="" ...> → <li data-type="taskItem" data-checked="true">
+    .replace(/<li><input[^>]*checked[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="true">')
+    // Unchecked: <li><input ...> (no checked) → <li data-type="taskItem" data-checked="false">
+    .replace(/<li><input[^>]*type="checkbox"[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="false">');
+
+  // Convert <ul> containing taskItems to taskList
+  result = result.replace(/<ul>(\s*<li data-type="taskItem")/g, '<ul data-type="taskList">$1');
+
+  return result;
+}
+
+/**
+ * Escape shell arguments for safe command execution
+ */
+export function escapeShellArg(arg: string): string {
+  return `'${arg.replace(/'/g, "'\\''")}'`;
+}
+
+// ============================================================================
+// Evaluate Prompt (Ideation cards)
+// ============================================================================
+
+export function buildEvaluatePrompt(
+  card: { title: string; description: string },
+  narrativePath?: string | null
+): string {
+  const title = stripHtml(card.title);
+  const description = stripHtml(card.description);
+
+  // Use custom narrative path if provided, otherwise default to docs/product-narrative.md
+  const narrativeRef = narrativePath
+    ? `@${narrativePath}`
+    : "@docs/product-narrative.md";
+
+  return `You are a Product Architect evaluating this idea. Be BRUTALLY HONEST.
+
+## Context Files
+Read these files for context:
+- ${narrativeRef} (project vision & scope) - if it exists
+- @CLAUDE.md (technical guidelines) - if it exists
+
+## Idea to Evaluate
+**Title:** ${title}
+
+**Description:**
+${description}
+
+## Your Evaluation Task
+Evaluate this idea from these perspectives:
+
+1. **YAGNI (You Ain't Gonna Need It)**: Is this feature truly needed? Will it provide value?
+2. **Scope Creep Risk**: Does this expand the project scope unnecessarily?
+3. **Scalability**: Will this scale with the product growth?
+4. **Technical Feasibility**: Is this technically achievable with reasonable effort?
+5. **Alignment with Vision**: Does this fit the product's core mission?
+6. **Implementation Complexity**: How hard is this to build?
+
+## Output Format
+You MUST provide your evaluation as markdown with EXACTLY these sections:
+
+## Summary Verdict
+[One sentence: Strong Yes / Yes / Maybe / No / Strong No]
+
+## Strengths
+- Point 1
+- Point 2
+(List the key strengths of this idea)
+
+## Concerns
+- Point 1
+- Point 2
+(List the main concerns, risks, or issues)
+
+## Recommendations
+- What should be considered before implementing
+- Any suggested modifications to the idea
+
+## Priority
+[PRIORITY: low/medium/high] - Your reasoning for this priority level
+(Based on urgency, impact, and alignment with project goals. Be honest - not everything is high priority!)
+
+## Complexity
+[COMPLEXITY: trivial/low/medium/high/very_high] - Your assessment
+(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
+
+## Final Score
+[X/10] - Brief justification for the score
+
+---
+Be direct. Don't sugarcoat. Point out both good and bad aspects.`;
+}
+
+// ============================================================================
+// Quick Fix Prompt (Bug cards)
+// ============================================================================
+
+export function buildQuickFixPrompt(card: { title: string; description: string }): string {
+  const title = stripHtml(card.title);
+  const description = stripHtml(card.description);
+
+  return `You are a senior developer. Fix this bug quickly and efficiently.
+
+## Bug Report
+${title}
+
+## Description
+${description}
+
+## Instructions
+1. Analyze the bug description
+2. Find the root cause in the codebase
+3. Implement the fix
+4. Verify the fix works
+
+## Output Requirements
+After fixing the bug, provide a brief summary in this format:
+
+## Quick Fix Summary
+- **Root Cause:** Brief description of what caused the bug
+- **Fix Applied:** What was changed to fix it
+- **Files Modified:** List of files that were changed
+
+## Test Scenarios
+- [ ] Bug no longer reproduces
+- [ ] Related functionality still works
+- [ ] No regression in existing tests
+
+Focus on fixing the bug efficiently. Do NOT write extensive documentation or plans.`;
+}
+
+// ============================================================================
+// Start/Phase Prompt (Backlog -> In Progress -> Test)
+// ============================================================================
+
+/**
+ * Detect which phase the card is in based on existing content
+ */
+export function detectPhase(card: { solutionSummary: string | null; testScenarios: string | null }): Phase {
+  const hasSolution = card.solutionSummary && stripHtml(card.solutionSummary) !== "";
+  const hasTests = card.testScenarios && stripHtml(card.testScenarios) !== "";
+
+  if (!hasSolution) return "planning";
+  if (!hasTests) return "implementation";
+  return "retest";
+}
+
+export function buildPhasePrompt(
+  phase: Phase,
+  card: CardForPrompt
+): string {
+  const title = stripHtml(card.title);
+
+  switch (phase) {
+    case "planning":
+      return `Kanban: ${card.id}
+
+Read card via MCP (mcp__kanban__get_card). Review title, description, and any existing notes.
+
+Task: Create implementation plan for "${title}".
+
+Plan format:
+- Files to Modify
+- Implementation Steps
+- Edge Cases
+- Dependencies
+
+Must include at the end:
+[COMPLEXITY: trivial/low/medium/high/very_high]
+[PRIORITY: low/medium/high]
+
+Do NOT implement yet - plan only.`;
+
+    case "implementation":
+      return `Kanban: ${card.id}
+
+Read card via MCP (mcp__kanban__get_card). Follow the approved plan in solutionSummary.
+
+Task: Implement "${title}".
+
+After coding, write test scenarios:
+### Happy Path
+- [ ] Test case
+
+### Edge Cases
+- [ ] Test case
+
+### Regression
+- [ ] Existing feature still works
+
+Write code, then output only test scenarios.`;
+
+    case "retest":
+      return `Kanban: ${card.id}
+
+Read card via MCP (mcp__kanban__get_card). Review previous implementation and test scenarios.
+
+Task: "${title}" failed during testing.
+
+User will describe the error - wait and fix.`;
+  }
+}
+
+// ============================================================================
+// Ideation Prompt (Interactive brainstorming)
+// ============================================================================
+
+export function buildIdeationPrompt(card: { id: string; title: string; description: string }): string {
+  const title = stripHtml(card.title);
+  const description = stripHtml(card.description);
+
+  return `You are a Product Strategist. Let's brainstorm and refine this idea together.
+
+## Idea to Discuss
+**Title:** ${title}
+
+**Description:**
+${description}
+
+## Your Role
+1. Ask clarifying questions to understand the idea better
+2. Challenge assumptions - consider YAGNI, scope creep risks
+3. Explore alternatives and improvements
+4. Help refine the concept into something actionable
+5. Consider technical feasibility and implementation complexity
+
+## Discussion Guidelines
+- Be curious and ask probing questions
+- Point out potential issues constructively
+- Suggest improvements or alternatives
+- Help prioritize if the idea is too broad
+- Be honest but collaborative
+
+## Kanban MCP Tools Available
+- mcp__kanban__save_opinion - Save your final thoughts to the card
+- mcp__kanban__update_card - Update card fields (including priority)
+- mcp__kanban__get_card - Get card details
+
+Card ID: ${card.id}
+
+## CRITICAL: When Discussion Ends
+Before finishing, you MUST do THREE things:
+
+### 1. Update Priority
+Based on our discussion, update the card priority:
+\`\`\`
+mcp__kanban__update_card({ id: "${card.id}", priority: "low" | "medium" | "high" })
+\`\`\`
+Be BRUTALLY HONEST - not everything is high priority!
+
+### 2. Update Complexity
+Based on the scope of the idea, update the card complexity:
+\`\`\`
+mcp__kanban__update_card({ id: "${card.id}", complexity: "trivial" | "low" | "medium" | "high" | "very_high" })
+\`\`\`
+(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
+
+### 3. Save Your Opinion
+Your opinion MUST include EXACTLY these sections:
+\`\`\`
+mcp__kanban__save_opinion({ id: "${card.id}", aiOpinion: "## Summary Verdict\\n[Strong Yes / Yes / Maybe / No / Strong No]\\n\\n## Strengths\\n- Point 1\\n- Point 2\\n\\n## Concerns\\n- Point 1\\n- Point 2\\n\\n## Recommendations\\n- Recommendation 1\\n- Recommendation 2\\n\\n## Priority\\n[PRIORITY: low/medium/high] - Your reasoning\\n\\n## Final Score\\n[X/10] - Brief justification" })
+\`\`\`
+
+Do NOT end the session without updating priority, complexity, and saving your opinion.
+
+Let's start! What would you like to explore about this idea?`;
+}
+
+// ============================================================================
+// Conflict Resolution Prompt
+// ============================================================================
+
+export function buildConflictPrompt(
+  displayId: string,
+  branchName: string,
+  conflictFiles: string[]
+): string {
+  const filesStr = conflictFiles.join(", ");
+
+  return `Rebase conflict resolution for ${displayId}. Branch: ${branchName}. Conflicting files: ${filesStr}. Help me resolve the git rebase conflict. Open the conflicting files, find the conflict markers, resolve them, then run git add and git rebase --continue.`;
+}
+
+// ============================================================================
+// Narrative Prompt (Product narrative generation)
+// ============================================================================
+
+export function buildNarrativePrompt(projectName: string, data: NarrativeData): string {
+  return `You are a Product Architect creating a professional product narrative document.
+
+## Project: ${projectName}
+
+## User's Input (expand and professionalize these):
+
+**Story Behind This:**
+${data.storyBehindThis || "Not provided"}
+
+**Problem:**
+${data.problem || "Not provided"}
+
+**Target Users:**
+${data.targetUsers || "Not provided"}
+
+**Core Features:**
+${data.coreFeatures || "Not provided"}
+
+**Non-Goals (Out of Scope):**
+${data.nonGoals || "Not provided"}
+
+**Tech Stack:**
+${data.techStack || "Not provided"}
+
+**Success Metrics:**
+${data.successMetrics || "Not provided"}
+
+## Your Task
+
+Create a comprehensive, professional product narrative document in markdown format.
+
+Requirements:
+1. Expand the user's brief inputs into detailed, well-structured sections
+2. Add professional context and depth to each section
+3. Include a Vision Statement at the beginning
+4. Add Problem Definition with sub-sections if relevant
+5. Describe the Solution Architecture conceptually
+6. Include Competitive Positioning if applicable
+7. Add a Product-Architect Commentary section with design decisions
+8. Keep the tone professional but accessible
+9. Use tables, diagrams (ASCII), and structured lists where appropriate
+10. End with document metadata (version, date)
+
+Output ONLY the markdown content, no explanations.`;
+}
+
+/**
+ * Generate fallback narrative content when AI is unavailable
+ */
+export function generateFallbackContent(projectName: string, data: NarrativeData): string {
+  const now = new Date().toISOString().split("T")[0];
+
+  return `# Product Narrative: ${projectName}
+
+## Story Behind This
+${data.storyBehindThis || "_Not provided_"}
+
+## Problem
+${data.problem || "_Not provided_"}
+
+## Target Users
+${data.targetUsers || "_Not provided_"}
+
+## Core Features
+${data.coreFeatures || "_Not provided_"}
+
+## Non-Goals (Out of Scope)
+${data.nonGoals || "_Not provided_"}
+
+## Tech Stack
+${data.techStack || "_Not provided_"}
+
+## Success Metrics
+${data.successMetrics || "_Not provided_"}
+
+---
+Generated: ${now}
+`;
+}

@@ -25,6 +25,7 @@ interface MarkdownEditorProps {
   placeholder?: string;
   minHeight?: string;
   onCardClick?: (cardId: string) => void;
+  projectId?: string | null;
 }
 
 export function MarkdownEditor({
@@ -33,11 +34,38 @@ export function MarkdownEditor({
   placeholder = "Write here...",
   minHeight = "80px",
   onCardClick,
+  projectId,
 }: MarkdownEditorProps) {
   const isUpdatingFromExternal = useRef(false);
   const lastSyncedValue = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { skills, mcps, cards, projects, activeProjectId, documents } = useKanbanStore();
+
+  // Ref to hold current documents for the callback
+  const documentsRef = useRef<typeof documents>([]);
+
+  // Fetch and maintain documents for the card's project
+  useEffect(() => {
+    const effectiveProjectId = projectId || activeProjectId;
+
+    if (effectiveProjectId && effectiveProjectId !== activeProjectId) {
+      // Card has a project but sidebar shows "All Projects" - fetch card's project documents
+      fetch(`/api/projects/${effectiveProjectId}/documents`)
+        .then(res => res.json())
+        .then(docs => {
+          documentsRef.current = Array.isArray(docs) ? docs : [];
+        })
+        .catch(() => {
+          documentsRef.current = [];
+        });
+    } else {
+      // Use store's documents
+      documentsRef.current = documents;
+    }
+  }, [projectId, activeProjectId, documents]);
+
+  // Callback to get current documents (used by suggestion)
+  const getDocuments = useCallback(() => documentsRef.current, []);
 
   const skillSuggestion = useMemo(
     () => createSuggestion({ char: "/", items: skills, prefix: "/", nodeType: "skillMention" }),
@@ -55,8 +83,8 @@ export function MarkdownEditor({
   );
 
   const documentSuggestion = useMemo(
-    () => createDocumentSuggestion({ documents }),
-    [documents]
+    () => createDocumentSuggestion({ getDocuments }),
+    [getDocuments]
   );
 
   const editor = useEditor({

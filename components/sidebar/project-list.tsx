@@ -19,7 +19,7 @@ export function ProjectList() {
   const unpinnedProjects = projects.filter((p) => !p.isPinned);
 
   return (
-    <div className="px-2">
+    <div className="px-2 relative z-20">
       {/* All Projects option */}
       <button
         onClick={() => setActiveProject(null)}

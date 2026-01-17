@@ -903,6 +903,7 @@ export function CardModal() {
                 placeholder="Describe the task..."
                 minHeight="120px"
                 onCardClick={handleCardClick}
+                projectId={projectId}
               />
             </CollapsibleContent>
           </Collapsible>
@@ -926,6 +927,7 @@ export function CardModal() {
                 placeholder="AI's evaluation of this idea..."
                 minHeight="150px"
                 onCardClick={handleCardClick}
+                projectId={projectId}
               />
             </CollapsibleContent>
           </Collapsible>
@@ -949,6 +951,7 @@ export function CardModal() {
                 placeholder="Document the agreed solution..."
                 minHeight="150px"
                 onCardClick={handleCardClick}
+                projectId={projectId}
               />
             </CollapsibleContent>
           </Collapsible>
@@ -972,6 +975,7 @@ export function CardModal() {
                 placeholder="- [ ] Test case 1&#10;- [ ] Test case 2"
                 minHeight="150px"
                 onCardClick={handleCardClick}
+                projectId={projectId}
               />
             </CollapsibleContent>
           </Collapsible>

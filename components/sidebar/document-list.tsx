@@ -30,7 +30,7 @@ export function DocumentList() {
   };
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="px-2">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="px-2 relative z-0">
       <CollapsibleTrigger className="flex items-center gap-2 w-full px-2 py-2 text-xs text-muted-foreground uppercase tracking-wider font-medium hover:text-foreground transition-colors">
         <ChevronRight
           className={`h-3 w-3 transition-transform duration-200 ${
@@ -80,7 +80,7 @@ export function DocumentList() {
                 }`}
               >
                 <File className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{doc.name}</span>
+                <span className="break-all">{doc.name}</span>
               </button>
             ))}
 
@@ -112,7 +112,7 @@ export function DocumentList() {
                       }`}
                     >
                       <File className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{getFileName(doc.relativePath)}</span>
+                      <span className="break-all">{getFileName(doc.relativePath)}</span>
                     </button>
                   ))}
                 </CollapsibleContent>
@@ -147,7 +147,7 @@ export function DocumentList() {
                       }`}
                     >
                       <File className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{getFileName(doc.relativePath)}</span>
+                      <span className="break-all">{getFileName(doc.relativePath)}</span>
                     </button>
                   ))}
                 </CollapsibleContent>

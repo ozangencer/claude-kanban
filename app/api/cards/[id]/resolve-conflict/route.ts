@@ -6,16 +6,7 @@ import { writeFileSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import type { TerminalApp } from "@/lib/types";
-
-function buildConflictPrompt(
-  displayId: string,
-  branchName: string,
-  conflictFiles: string[]
-): string {
-  const filesStr = conflictFiles.join(", ");
-
-  return `Rebase conflict resolution for ${displayId}. Branch: ${branchName}. Conflicting files: ${filesStr}. Help me resolve the git rebase conflict. Open the conflicting files, find the conflict markers, resolve them, then run git add and git rebase --continue.`;
-}
+import { buildConflictPrompt } from "@/lib/prompts";
 
 export async function POST(
   request: NextRequest,

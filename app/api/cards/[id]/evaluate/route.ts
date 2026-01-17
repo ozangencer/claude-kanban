@@ -4,6 +4,12 @@ import { db, schema } from "@/lib/db";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { marked } from "marked";
+import {
+  stripHtml,
+  convertToTipTapTaskList,
+  escapeShellArg,
+  buildEvaluatePrompt,
+} from "@/lib/prompts";
 
 const execAsync = promisify(exec);
 
@@ -15,95 +21,6 @@ interface ClaudeResponse {
   is_error?: boolean;
   num_turns?: number;
   session_id?: string;
-}
-
-function stripHtml(html: string): string {
-  if (!html) return "";
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-// Convert marked checkbox output to TipTap TaskList format
-function convertToTipTapTaskList(html: string): string {
-  let result = html
-    .replace(/<li><input[^>]*checked[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="true">')
-    .replace(/<li><input[^>]*type="checkbox"[^>]*>\s*/gi, '<li data-type="taskItem" data-checked="false">');
-
-  result = result.replace(/<ul>(\s*<li data-type="taskItem")/g, '<ul data-type="taskList">$1');
-  return result;
-}
-
-function escapeShellArg(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`;
-}
-
-function buildEvaluatePrompt(
-  card: { title: string; description: string },
-  narrativePath?: string | null
-): string {
-  const title = stripHtml(card.title);
-  const description = stripHtml(card.description);
-
-  // Use custom narrative path if provided, otherwise default to docs/product-narrative.md
-  const narrativeRef = narrativePath
-    ? `@${narrativePath}`
-    : "@docs/product-narrative.md";
-
-  return `You are a Product Architect evaluating this idea. Be BRUTALLY HONEST.
-
-## Context Files
-Read these files for context:
-- ${narrativeRef} (project vision & scope) - if it exists
-- @CLAUDE.md (technical guidelines) - if it exists
-
-## Idea to Evaluate
-**Title:** ${title}
-
-**Description:**
-${description}
-
-## Your Evaluation Task
-Evaluate this idea from these perspectives:
-
-1. **YAGNI (You Ain't Gonna Need It)**: Is this feature truly needed? Will it provide value?
-2. **Scope Creep Risk**: Does this expand the project scope unnecessarily?
-3. **Scalability**: Will this scale with the product growth?
-4. **Technical Feasibility**: Is this technically achievable with reasonable effort?
-5. **Alignment with Vision**: Does this fit the product's core mission?
-6. **Implementation Complexity**: How hard is this to build?
-
-## Output Format
-You MUST provide your evaluation as markdown with EXACTLY these sections:
-
-## Summary Verdict
-[One sentence: Strong Yes / Yes / Maybe / No / Strong No]
-
-## Strengths
-- Point 1
-- Point 2
-(List the key strengths of this idea)
-
-## Concerns
-- Point 1
-- Point 2
-(List the main concerns, risks, or issues)
-
-## Recommendations
-- What should be considered before implementing
-- Any suggested modifications to the idea
-
-## Priority
-[PRIORITY: low/medium/high] - Your reasoning for this priority level
-(Based on urgency, impact, and alignment with project goals. Be honest - not everything is high priority!)
-
-## Complexity
-[COMPLEXITY: trivial/low/medium/high/very_high] - Your assessment
-(trivial = few lines, low = simple change, medium = moderate effort, high = significant work, very_high = major undertaking)
-
-## Final Score
-[X/10] - Brief justification for the score
-
----
-Be direct. Don't sugarcoat. Point out both good and bad aspects.`;
 }
 
 export async function POST(
