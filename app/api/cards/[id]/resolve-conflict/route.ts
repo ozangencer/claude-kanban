@@ -12,25 +12,9 @@ function buildConflictPrompt(
   branchName: string,
   conflictFiles: string[]
 ): string {
-  const filesStr = conflictFiles.map((f) => `- ${f}`).join("\n");
+  const filesStr = conflictFiles.join(", ");
 
-  return `# Rebase Conflict Resolution - ${displayId}
-
-## Context
-A rebase conflict was detected while merging branch "${branchName}" onto main.
-
-## Conflicting Files
-${filesStr}
-
-## Instructions
-1. The worktree is currently in a rebase conflict state
-2. Open the conflicting files and look for conflict markers: <<<<<<< HEAD, =======, >>>>>>> ${branchName}
-3. Resolve each conflict by choosing the correct code or merging both versions
-4. Stage the resolved files with: git add <filename>
-5. Continue the rebase with: git rebase --continue
-6. If you need to abort and start over: git rebase --abort
-
-After resolving, the user can try "Merge & Complete" again.`;
+  return `Rebase conflict resolution for ${displayId}. Branch: ${branchName}. Conflicting files: ${filesStr}. Help me resolve the git rebase conflict. Open the conflicting files, find the conflict markers, resolve them, then run git add and git rebase --continue.`;
 }
 
 export async function POST(
