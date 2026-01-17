@@ -4,7 +4,8 @@ export type Status =
   | "bugs"
   | "progress"
   | "test"
-  | "completed";
+  | "completed"
+  | "withdrawn";
 
 export type Complexity = "low" | "medium" | "high";
 export type Priority = "low" | "medium" | "high";
@@ -82,6 +83,7 @@ export const COLUMNS: { id: Status; title: string }[] = [
   { id: "progress", title: "In Progress" },
   { id: "test", title: "Human Test" },
   { id: "completed", title: "Completed" },
+  { id: "withdrawn", title: "Withdrawn" },
 ];
 
 export const STATUS_COLORS: Record<Status, string> = {
@@ -91,6 +93,7 @@ export const STATUS_COLORS: Record<Status, string> = {
   progress: "bg-status-progress",
   test: "bg-status-test",
   completed: "bg-status-completed",
+  withdrawn: "bg-status-withdrawn",
 };
 
 // Settings types

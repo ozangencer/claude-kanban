@@ -36,7 +36,8 @@ const config: Config = {
   				bugs: '#ef4444',
   				progress: '#facc15',
   				test: '#3b82f6',
-  				completed: '#22c55e'
+  				completed: '#22c55e',
+  				withdrawn: '#6b7280'
   			},
   			foreground: 'hsl(var(--foreground))',
   			card: {

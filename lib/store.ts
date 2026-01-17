@@ -140,8 +140,8 @@ export const useKanbanStore = create<KanbanStore>()(
   // Sidebar initial state
   isSidebarCollapsed: false,
 
-  // Column collapse initial state
-  collapsedColumns: [],
+  // Column collapse initial state (withdrawn collapsed by default)
+  collapsedColumns: ["withdrawn"] as Status[],
 
   // Completed filter initial state (default: this_week)
   completedFilter: 'this_week',
@@ -929,6 +929,19 @@ export const useKanbanStore = create<KanbanStore>()(
         isSidebarCollapsed: state.isSidebarCollapsed,
         completedFilter: state.completedFilter,
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<KanbanStore>;
+        // Ensure withdrawn is always collapsed
+        const collapsedColumns = persisted.collapsedColumns || [];
+        if (!collapsedColumns.includes("withdrawn")) {
+          collapsedColumns.push("withdrawn");
+        }
+        return {
+          ...currentState,
+          ...persisted,
+          collapsedColumns,
+        };
+      },
     }
   )
 );

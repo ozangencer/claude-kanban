@@ -66,7 +66,7 @@ interface Card {
   updatedAt: string;
 }
 
-type Status = "ideation" | "backlog" | "bugs" | "progress" | "test" | "completed";
+type Status = "ideation" | "backlog" | "bugs" | "progress" | "test" | "completed" | "withdrawn";
 
 // Create MCP server
 const server = new Server(
@@ -127,7 +127,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             status: {
               type: "string",
-              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed"],
+              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed", "withdrawn"],
               description: "Card status/column",
             },
             complexity: {
@@ -156,7 +156,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             status: {
               type: "string",
-              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed"],
+              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed", "withdrawn"],
               description: "Target status/column",
             },
           },
@@ -171,7 +171,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             status: {
               type: "string",
-              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed"],
+              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed", "withdrawn"],
               description: "Filter by status (optional)",
             },
             projectId: {
@@ -201,7 +201,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             status: {
               type: "string",
-              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed"],
+              enum: ["ideation", "backlog", "bugs", "progress", "test", "completed", "withdrawn"],
               description: "Card status/column (default: backlog)",
             },
             complexity: {

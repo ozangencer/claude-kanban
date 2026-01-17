@@ -27,6 +27,7 @@ const STATUS_DOT_COLORS: Record<Status, string> = {
   progress: "bg-yellow-500",
   test: "bg-blue-500",
   completed: "bg-green-500",
+  withdrawn: "bg-gray-500",
 };
 
 export const CardMentionPopup = forwardRef<CardMentionPopupRef, CardMentionPopupProps>(
