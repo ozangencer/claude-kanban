@@ -136,4 +136,8 @@ export const PRIORITY_OPTIONS: { value: Priority; label: string; color: string }
   { value: "high", label: "High", color: "#ef4444" },
 ];
 // MAIN CHANGE FOR UI TEST - CONFLICT!
+<<<<<<< HEAD
 // MAIN CHANGE - CONFLICT TEST
+=======
+// WORKTREE CHANGE - CONFLICT TEST
+>>>>>>> 18f6cfb (test: Worktree change for conflict)
