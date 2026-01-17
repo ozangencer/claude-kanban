@@ -37,5 +37,8 @@ data/*.db
 # Backups
 backups/
 
+# Git worktrees
+.worktrees/
+
 # Misc
 *.log

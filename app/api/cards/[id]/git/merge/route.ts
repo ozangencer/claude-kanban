@@ -90,7 +90,7 @@ export async function POST(
   const commitMessage = `feat(${displayId}): ${card.title}\n\nSquash merge from branch: ${card.gitBranchName}`;
 
   try {
-    // Step 1: Auto-commit uncommitted changes in worktree
+    // Step 1: Check for uncommitted changes in worktree (block merge if found)
     if (card.gitWorktreePath && existsSync(card.gitWorktreePath)) {
       console.log(`[Merge] Checking for uncommitted changes in worktree: ${card.gitWorktreePath}`);
       try {
@@ -98,17 +98,19 @@ export async function POST(
           cwd: card.gitWorktreePath,
         });
         if (worktreeStatus.trim()) {
-          console.log(`[Merge] Found uncommitted changes, auto-committing...`);
-          // Stage all changes
-          await execAsync("git add -A", { cwd: card.gitWorktreePath });
-          // Commit with a descriptive message
-          const autoCommitMessage = `feat(${displayId}): Work in progress changes`;
-          await execAsync(`git commit -m "${autoCommitMessage}"`, { cwd: card.gitWorktreePath });
-          console.log(`[Merge] Auto-committed changes successfully`);
+          console.log(`[Merge] Found uncommitted changes in worktree, blocking merge`);
+          return NextResponse.json(
+            {
+              error: "Worktree'de commit edilmemiş değişiklikler var. Önce commit yapın.",
+              uncommittedInWorktree: true,
+              worktreePath: card.gitWorktreePath,
+            },
+            { status: 400 }
+          );
         }
       } catch (statusError) {
-        console.warn(`[Merge] Could not auto-commit worktree changes: ${statusError}`);
-        // Continue anyway - worktree might be in a bad state or nothing to commit
+        console.warn(`[Merge] Could not check worktree status: ${statusError}`);
+        // Continue anyway - worktree might be in a bad state
       }
     }
 
@@ -158,7 +160,72 @@ export async function POST(
       }
     }
 
-    // Step 4: Squash merge the branch into main (from the main repo)
+    // Step 4: Rebase branch onto main (in worktree) to detect conflicts early
+    if (card.gitWorktreePath && existsSync(card.gitWorktreePath)) {
+      console.log(`[Merge] Rebasing branch onto ${defaultBranch} in worktree...`);
+      try {
+        // Rebase onto local main (not origin/main) to include local unpushed commits
+        await execAsync(`git rebase ${defaultBranch}`, { cwd: card.gitWorktreePath });
+        console.log(`[Merge] Rebase successful`);
+      } catch (rebaseError) {
+        const errorMsg = rebaseError instanceof Error ? rebaseError.message : String(rebaseError);
+        console.error(`[Merge] Rebase failed: ${errorMsg}`);
+
+        // Check if it's a conflict
+        if (errorMsg.includes('CONFLICT') || errorMsg.includes('could not apply')) {
+          // Get list of conflicting files
+          let conflictFiles: string[] = [];
+          try {
+            const { stdout: conflictOutput } = await execAsync(
+              'git diff --name-only --diff-filter=U',
+              { cwd: card.gitWorktreePath }
+            );
+            conflictFiles = conflictOutput.trim().split('\n').filter(f => f);
+          } catch {
+            // Ignore error getting conflict files
+          }
+
+          // Update card with conflict status
+          db.update(schema.cards)
+            .set({
+              rebaseConflict: true,
+              conflictFiles: JSON.stringify(conflictFiles),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(schema.cards.id, id))
+            .run();
+
+          console.log(`[Merge] Conflict detected in files: ${conflictFiles.join(', ')}`);
+
+          return NextResponse.json(
+            {
+              error: "Rebase conflict detected",
+              rebaseConflict: true,
+              conflictFiles,
+              worktreePath: card.gitWorktreePath,
+              branchName: card.gitBranchName,
+              cardId: id,
+              displayId,
+            },
+            { status: 409 }
+          );
+        }
+
+        // Other rebase error - abort and return
+        try {
+          await execAsync('git rebase --abort', { cwd: card.gitWorktreePath });
+        } catch {
+          // Ignore abort errors
+        }
+
+        return NextResponse.json(
+          { error: `Rebase failed: ${errorMsg}` },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Step 5: Squash merge the branch into main (from the main repo)
     console.log(`[Merge] Squash merging branch: ${card.gitBranchName}`);
     const result = await squashMergeFromWorktree(workingDir, card.gitBranchName, commitMessage);
 
@@ -170,7 +237,7 @@ export async function POST(
       );
     }
 
-    // Step 4: Remove worktree AFTER successful merge
+    // Step 6: Remove worktree AFTER successful merge
     if (card.gitWorktreePath) {
       console.log(`[Merge] Removing worktree: ${card.gitWorktreePath}`);
       const removeResult = await removeWorktree(workingDir, card.gitWorktreePath);
@@ -180,7 +247,7 @@ export async function POST(
       }
     }
 
-    // Step 5: Delete the branch AFTER successful merge
+    // Step 7: Delete the branch AFTER successful merge
     console.log(`[Merge] Deleting branch: ${card.gitBranchName}`);
     try {
       await execAsync(`git branch -D ${card.gitBranchName}`, { cwd: workingDir });
@@ -189,7 +256,7 @@ export async function POST(
       // Continue anyway - branch deletion is not critical
     }
 
-    // Step 6: Prune any orphan worktrees
+    // Step 8: Prune any orphan worktrees
     await pruneWorktrees(workingDir);
 
     console.log(`[Merge] Success - branch merged, worktree removed, branch deleted`);
